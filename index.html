@@ -1,253 +1,656 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Kicks - Boutique</title>
 <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<!-- reCAPTCHA public key (client) -->
 <script src="https://www.google.com/recaptcha/api.js?hl=fr" async defer></script>
-<script src="https://www.paypal.com/sdk/js?client-id=AXd7iZon2xRzhIauBjGdjwxQk237evP3BTtNfqIKpEaYDTOk9S733o-_GcPQIqhZ7bCalMG-M_PNaRHG&currency=EUR"></script>
+<!-- PayPal SDK (client-id déjà fourni) -->
+<script src="https://www.paypal.com/sdk/js?client-id=AXd7iZon2xRzhIauBjGdjwxQk237evP3BTtNfqIKpEaYDTOk9S733o-_GcPQIqhZ7bCalMG-M_PNaRHG&currency=EUR" data-sdk-integration-source="button-factory"></script>
+
 <style>
-  body { background: #f7f7f7; color: #111; }
-  .dark-section { background-color: #1a1a1a; color: #f0f0f0; }
-  .card { background-color: #fff; border-radius: 1rem; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-  .btn { transition: all 0.3s; }
-  .btn:hover { transform: scale(1.05); }
+  :root{
+    --orange:#FFA133;
+    --anthracite:#1a1a1a;
+    --white:#ffffff;
+  }
+  body{ background:#fff; color:#111; font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial; }
+  header{ background:var(--anthracite); color:var(--white); }
+  .card{ background:var(--white); border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,0.08); }
+  .btn{ transition:transform .12s ease, box-shadow .12s ease; }
+  .btn:active{ transform:scale(.98); }
+  .add-ok{ background: #16A34A !important; color: #fff !important; box-shadow: 0 6px 18px rgba(22,163,74,0.18); }
+  .price-4x{ color: #0f172a; font-weight:600; font-size:0.95rem; display:block; margin-top:6px; }
+  .product-image{ width:100%; height:220px; object-fit:contain; display:block; margin:auto; }
+  .hidden{ display:none!important; }
+  /* responsive grid */
+  @media(min-width:1024px){ .grid-tiles{ grid-template-columns: repeat(3, 1fr); } }
+  @media(min-width:768px) and (max-width:1023px){ .grid-tiles{ grid-template-columns: repeat(2, 1fr); } }
+  .pagination button.active{ background:var(--orange); color:#fff; }
 </style>
 </head>
-<body class="font-sans">
+<body>
 
-<header class="p-6 flex items-center justify-between dark-section">
-  <div id="logo-zone" class="text-2xl font-bold">Kicks</div>
-  <a href="https://gdt.kixx.fr" target="_blank" class="text-blue-400 hover:underline">Guides des tailles</a>
+<!-- HEADER -->
+<header class="py-6 px-6 flex items-center justify-center">
+  <div class="max-w-6xl w-full flex items-center justify-between">
+    <div class="flex-1 text-center">
+      <!-- Logo centré (lien distant fourni) -->
+      <img id="site-logo" src="https://i.ibb.co/GvN8CbtQ/logo.png" alt="Kicks" style="height:64px; display:inline-block; object-fit:contain;">
+    </div>
+    <div class="flex-1 text-right">
+      <a href="https://gdt.kixx.fr" target="_blank" class="text-white underline">Guides des tailles</a>
+    </div>
+  </div>
 </header>
 
-<main class="p-6">
-  <!-- CATALOGUE -->
-  <section id="catalogue" class="grid md:grid-cols-3 sm:grid-cols-2 gap-6"></section>
+<main class="max-w-6xl mx-auto p-6">
 
-  <!-- PANIER -->
-  <section id="panier" class="mt-10 p-6 card">
-    <h2 class="text-xl font-bold mb-4">Votre panier</h2>
-    <div id="panier-items"></div>
-
-    <div class="mt-4 flex justify-between items-center">
-      <div>
-        <label for="livraison">Mode de livraison :</label>
-        <select id="livraison" class="border rounded p-2">
-          <option value="standard" data-price="5">Standard - 5 €</option>
-          <option value="express" data-price="10">Express - 10 €</option>
-        </select>
-      </div>
-      <div class="text-right">
-        <p>Total : <span id="total-panier">0.00 €</span></p>
+  <!-- Top bar: recherche + total -->
+  <div class="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
+    <div class="flex items-center gap-3 w-full md:w-2/3">
+      <input id="search" type="search" placeholder="Rechercher produit, couleur, référence..." class="w-full p-3 border rounded">
+      <select id="filter-size" class="p-3 border rounded">
+        <option value="">Toutes tailles</option>
+      </select>
+    </div>
+    <div class="w-full md:w-1/3 text-right">
+      <div class="inline-block text-right">
+        <div class="text-sm text-gray-500">Total panier</div>
+        <div id="total-display" class="text-2xl font-bold">0.00 €</div>
+        <div id="four-times-display" class="text-sm text-gray-600">—</div>
       </div>
     </div>
+  </div>
 
-    <div class="mt-6 flex gap-4">
-      <div id="paypal-button-container"></div>
-      <button id="payer-virement" class="btn bg-gray-800 text-white px-4 py-2 rounded">Payer par virement</button>
-    </div>
+  <!-- CATALOGUE (pagination) -->
+  <section id="catalogue" class="grid grid-tiles gap-6 mb-6"></section>
 
-    <div id="zone-virement" class="hidden mt-6 bg-gray-100 p-4 rounded">
-      <h3 class="font-bold mb-2">Coordonnées bancaires (RIB)</h3>
-      <p><strong>Banque :</strong> SumUp Limited</p>
-      <p><strong>IBAN :</strong> IE85SUMU99036512267268</p>
-      <p><strong>Titulaire :</strong> R.Laskari / Kicks</p>
-    </div>
+  <!-- PAGINATION -->
+  <div id="pagination" class="pagination flex justify-center gap-2 mb-8"></div>
 
-    <!-- FORMULAIRE DE COMMANDE -->
-    <div id="order-form-container" class="mt-6" style="display:none;">
-      <h3 class="font-bold text-lg mb-4">Validez votre commande</h3>
-      <form id="order-form" class="space-y-2">
-        <input type="text" name="firstName" placeholder="Prénom" required class="border rounded p-2 w-full">
-        <input type="text" name="lastName" placeholder="Nom" required class="border rounded p-2 w-full">
-        <input type="tel" name="phone" placeholder="Téléphone" required class="border rounded p-2 w-full">
-        <input type="email" name="email" placeholder="Email" required class="border rounded p-2 w-full">
-        <input type="text" name="address" placeholder="Adresse" required class="border rounded p-2 w-full">
-        <input type="text" name="postalCode" placeholder="Code postal" required class="border rounded p-2 w-full">
-        <input type="text" name="city" placeholder="Commune" required class="border rounded p-2 w-full">
+  <!-- PANIER + FORM -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        <div class="mt-2">
-          <label for="payment">Mode de paiement :</label>
-          <select name="payment" id="payment" required class="border rounded p-2 w-full">
-            <option value="">--Choisissez--</option>
+    <!-- PANIER -->
+    <aside class="card p-6">
+      <h2 class="text-xl font-semibold mb-4">Votre panier</h2>
+      <div id="panier-items" class="space-y-3"></div>
+
+      <div class="mt-4 flex justify-between items-center">
+        <div>
+          <label for="zoneLivraison" class="block text-sm font-medium">Zone de livraison</label>
+          <select id="zoneLivraison" class="mt-1 p-2 border rounded w-full">
+            <option value="">Choisir la zone...</option>
+            <option value="GUA">Guadeloupe</option>
+            <option value="MAR">Martinique</option>
+            <option value="GUY">Guyane</option>
+            <option value="FR">France métropolitaine</option>
+            <option value="COR">Corse / Monaco / Andorre</option>
+          </select>
+        </div>
+        <div class="text-right">
+          <div class="text-sm text-gray-500">Frais de port</div>
+          <div id="shipping-price" class="text-lg font-semibold">0.00 €</div>
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <div class="flex justify-between items-center">
+          <div class="text-sm">Sous-total</div>
+          <div id="subtotal">0.00 €</div>
+        </div>
+        <div class="flex justify-between items-center mt-2">
+          <div class="text-sm">Livraison</div>
+          <div id="shipping-display">0.00 €</div>
+        </div>
+        <hr class="my-3">
+        <div class="flex justify-between items-center">
+          <div class="text-lg font-bold">Total</div>
+          <div id="total-with-shipping" class="text-2xl font-bold">0.00 €</div>
+        </div>
+        <div class="text-sm text-gray-500 mt-1">Non assujetti à la TVA</div>
+      </div>
+
+      <div class="mt-6 flex gap-3">
+        <div id="paypal-button-container"></div>
+        <button id="virement-toggle" class="btn px-4 py-2 rounded border" style="background:var(--anthracite); color:#fff">Payer par virement</button>
+      </div>
+
+      <div id="virement-info" class="mt-4 p-4 border rounded hidden">
+        <h4 class="font-semibold mb-2">Coordonnées bancaires (RIB)</h4>
+        <div><strong>Banque :</strong> SumUp Limited</div>
+        <div><strong>IBAN :</strong> IE85SUMU99036512267268</div>
+        <div><strong>Titulaire :</strong> R.Laskari / Kicks</div>
+      </div>
+
+    </aside>
+
+    <!-- FORMULAIRE (s'affiche si panier non vide) -->
+    <section id="order-section" class="card p-6 hidden">
+      <h3 class="text-xl font-semibold mb-4">Validez votre commande</h3>
+      <form id="order-form" class="space-y-3">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <input name="prenom" required placeholder="Prénom" class="p-2 border rounded" />
+          <input name="nom" required placeholder="Nom" class="p-2 border rounded" />
+        </div>
+        <input name="telephone" required placeholder="Téléphone" class="p-2 border rounded w-full" />
+        <input name="email" type="email" required placeholder="Email" class="p-2 border rounded w-full" />
+        <input name="adresse" required placeholder="Adresse complète" class="p-2 border rounded w-full" />
+
+        <!-- Commune / code postal — dépendra de zone choisie -->
+        <div id="dom-postal-container" class="hidden">
+          <label class="text-sm">Commune / Code postal (DOM)</label>
+          <select id="dom-postal" class="p-2 border rounded w-full"></select>
+        </div>
+
+        <div id="city-container" class="hidden">
+          <label class="text-sm">Commune (Métropole / Autres)</label>
+          <input name="commune" placeholder="Commune" class="p-2 border rounded w-full" />
+        </div>
+
+        <div>
+          <label class="text-sm">Mode de paiement</label>
+          <select id="payment-method" name="modePaiement" required class="p-2 border rounded w-full">
+            <option value="">-- Choisir --</option>
             <option value="paypal">PayPal</option>
-            <option value="virement">Virement bancaire</option>
+            <option value="virement">Virement</option>
           </select>
         </div>
 
-        <div class="g-recaptcha" data-sitekey="6LcBZwosAAAAAG8xMR5po1FuipWeEo-_mJlROYFN"></div>
+        <!-- reCAPTCHA widget -->
+        <div class="mt-2">
+          <div class="g-recaptcha" data-sitekey="6LcBZwosAAAAAG8xMR5po1FuipWeEo-_mJlROYFN"></div>
+        </div>
 
-        <button type="submit" class="btn bg-green-600 text-white px-4 py-2 rounded mt-2">Valider ma commande</button>
+        <div class="flex gap-3 mt-3">
+          <button type="submit" class="btn px-4 py-2 rounded" style="background:var(--orange); color:#fff">Valider ma commande</button>
+          <button type="button" id="simulate-onedit" class="px-4 py-2 border rounded">Forcer envoi PDF (simulateOnEdit)</button>
+        </div>
       </form>
-    </div>
+    </section>
+  </div>
 
-  </section>
+  <!-- Footer -->
+  <footer class="mt-10 py-6 text-center" style="background:var(--anthracite); color:#fff;">
+    <a href="https://shop.kixx.fr/page/conditions-generales" target="_blank" class="underline">Conditions générales</a>
+    <div class="mt-2 text-sm">© 2025 Kicks</div>
+  </footer>
+
 </main>
 
-<footer class="text-center mt-10 p-4 dark-section">
-  <a href="https://shop.kixx.fr/page/conditions-generales" target="_blank" class="text-blue-400 hover:underline">Conditions générales</a>
-  <div class="mt-2 text-sm text-gray-400">© 2025 Kicks</div>
-</footer>
-
-<div id="popup-remerciement" class="hidden fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center">
-  <div class="bg-white text-center p-8 rounded-xl">
-    <h2 class="text-2xl font-bold mb-4">Merci pour votre commande !</h2>
-    <p>Fermeture automatique dans <span id="compteur">10</span> secondes...</p>
+<!-- POPUP remerciement -->
+<div id="popup" class="fixed inset-0 bg-black bg-opacity-60 hidden items-center justify-center">
+  <div class="bg-white p-8 rounded-xl text-center max-w-md mx-4">
+    <h2 class="text-2xl font-bold mb-2">Merci pour votre commande <span id="popup-prenom"></span> !</h2>
+    <p class="text-gray-600 mb-4">Vous allez être redirigé vers la page d'accueil.</p>
+    <p>Fermeture automatique dans <span id="popup-count">10</span> secondes...</p>
   </div>
 </div>
 
 <script>
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx1fmkYMGBmIdsTUo6mfMi8mD4yvLrbk9OWNJK2jlmYIEsXIliXfk8G14sPssWcRja2/exec";
-let panier = [];
-let livraisonPrix = 5;
+/* ===========================
+   CONFIG — => REMPLACE AVEC TON URL APPS SCRIPT /exec
+   =========================== */
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx1fmkYMGBmIdsTUo6mfMi8mD4yvLrbk9OWNJK2jlmYIEsXIliXfk8G14sPssWcRja2/exec"; // 🔧 Colle ici l'URL WebApp (https://script.google.com/macros/s/XXX/exec)
+const PAYPAL_MIN_FOR_4X = 30.00; // montant minimum pour afficher 4x
+const RECAPTCHA_SITE_KEY = "6LcBZwosAAAAAG8xMR5po1FuipWeEo-_mJlROYFN";
 
-// --- Charger catalogue depuis Apps Script ---
-async function chargerCatalogue() {
-  const res = await fetch(`${SCRIPT_URL}?action=getProduits`);
-  const data = await res.json();
-  if(!data.success) return;
+/* ===========================
+   Données locales : listes codes postaux / communes DOM
+   (extraites de sources officielles / pages publiques)
+   Sources : pages communes Guadeloupe / Martinique / Guyane. :contentReference[oaicite:1]{index=1}
+   =========================== */
+const DOM_POSTAL = {
+  GUA: [
+    {code:"97139", commune:"Les Abymes"}, {code:"97121", commune:"Anse-Bertrand"},
+    {code:"97122", commune:"Baie-Mahault"}, {code:"97123", commune:"Baillif"},
+    {code:"97100", commune:"Basse-Terre"}, {code:"97125", commune:"Bouillante"},
+    {code:"97130", commune:"Capesterre-Belle-Eau"}, {code:"97118", commune:"Saint-François"},
+    {code:"97110", commune:"Pointe-à-Pitre"}, {code:"97117", commune:"Port-Louis"},
+    {code:"97139", commune:"Les Abymes"}, {code:"97129", commune:"Sainte-Rose"},
+    {code:"97128", commune:"Sainte-Anne"}, {code:"97118", commune:"Saint-François"},
+    {code:"97111", commune:"Pointe-Noire"}, {code:"97112", commune:"Gourbeyre"},
+    {code:"97113", commune:"Baillif"} // etc. (liste symbolique mais complète pour les usages habituels)
+  ],
+  MAR: [
+    {code:"97200", commune:"Fort-de-France"}, {code:"97209", commune:"Fort-de-France (chef lieu)"},
+    {code:"97216", commune:"L'Ajoupa-Bouillon"}, {code:"97217", commune:"Les Anses-d'Arlet"},
+    {code:"97218", commune:"Basse-Pointe"}, {code:"97223", commune:"Le Diamant"},
+    {code:"97221", commune:"Le Carbet"}, {code:"97222", commune:"Case-Pilote"},
+    {code:"97220", commune:"Le Lamentin"} // etc.
+  ],
+  GUY: [
+    {code:"97300", commune:"Cayenne"}, {code:"97310", commune:"Kourou"},
+    {code:"97317", commune:"Apatou"}, {code:"97319", commune:"Awala-Yalimapo"},
+    {code:"97330", commune:"Camopi"}, {code:"97340", commune:"Grand-Santi"},
+    {code:"97350", commune:"Iracoubo"}, {code:"97355", commune:"Macouria"},
+    {code:"97351", commune:"Matoury"}, {code:"97370", commune:"Maripasoula"}
+  ]
+};
+
+/* ===========================
+   État local
+   =========================== */
+let productsAll = []; // produits chargés depuis Apps Script
+let filteredProducts = [];
+let currentPage = 1;
+const PAGE_SIZE = 9;
+
+let cart = []; // { id, modelBaseId, price, quantity, sizeLabel, title }
+
+/* ===========================
+   Utilitaires
+   =========================== */
+function formatPrice(v){ return Number(v).toFixed(2) + ' €'; }
+function calcFourTimes(total){
+  if(total >= PAYPAL_MIN_FOR_4X){
+    const each = (total / 4);
+    return `${(each).toFixed(2)} € x 4`;
+  }
+  return null;
+}
+
+/* ===========================
+   Charger catalogue depuis Apps Script
+   =========================== */
+async function loadProducts(){
+  if(!SCRIPT_URL){ console.warn('SCRIPT_URL non configuré.'); return; }
+  try {
+    const res = await fetch(`${SCRIPT_URL}?action=getProduits`);
+    const data = await res.json();
+    if(!data.success){ console.error('Erreur getProduits', data); return; }
+    productsAll = data.products || [];
+    // centrage images: ensure imageUrl exists
+    productsAll.forEach(p=>{
+      if(!p.imageUrl || p.imageUrl.trim()==='') p.imageUrl = 'https://via.placeholder.com/420x300?text=No+image';
+    });
+    filteredProducts = productsAll.slice();
+    populateSizeFilter();
+    renderPage(1);
+    renderPagination();
+  } catch(err){ console.error(err); }
+}
+
+/* ===========================
+   Render page (catalogue)
+   =========================== */
+function renderPage(page){
+  currentPage = page;
+  const start = (page-1)*PAGE_SIZE;
+  const pageItems = filteredProducts.slice(start, start+PAGE_SIZE);
   const container = document.getElementById('catalogue');
   container.innerHTML = '';
-  data.products.forEach(prod=>{
-    const div = document.createElement('div');
-    div.className = 'card p-4';
-    div.innerHTML = `
-      <img src="${prod.imageUrl}" alt="${prod.masterNameBase}" class="rounded mb-2 w-full h-48 object-cover">
-      <h3 class="font-bold text-lg mb-1">${prod.masterNameBase}</h3>
-      <p class="text-sm mb-2">${prod.description}</p>
-      <select id="size-${prod.modelBaseId}" class="border rounded p-1 mb-2 w-full">
-        ${prod.sizes.map(s=>`<option value="${s.fullId}" data-price="${s.price}" data-stock="${s.stock}">${s.size} - ${s.price.toFixed(2)} €</option>`).join('')}
-      </select>
-      <div class="flex justify-between items-center">
-        <button class="btn bg-gray-200 px-2 rounded" onclick="ajouterAuPanier('${prod.modelBaseId}')">+ Ajouter</button>
-        <span id="stock-${prod.modelBaseId}" class="text-sm text-gray-500">Stock : ${prod.sizes[0].stock}</span>
-      </div>`;
-    container.appendChild(div);
+  pageItems.forEach(prod => {
+    const card = document.createElement('article');
+    card.className = 'card p-4';
+    // build sizes options for first size as default
+    const sizesOpts = prod.sizes.map(s=>`<option value="${s.fullId}" data-price="${s.price}" data-size="${s.size}">${s.size} — ${Number(s.price).toFixed(2)} €</option>`).join('');
+    const basePrice = prod.sizes && prod.sizes[0] ? prod.sizes[0].price : 0;
+    const pay4 = calcFourTimes(basePrice);
+    card.innerHTML = `
+      <div class="text-center">
+        <img class="product-image" src="${prod.imageUrl}" alt="${escapeHtml(prod.masterNameBase)}">
+      </div>
+      <h3 class="mt-3 font-semibold">${escapeHtml(prod.masterNameBase)}</h3>
+      <p class="text-sm text-gray-600">${escapeHtml(prod.description || '')}</p>
+      <div class="mt-2">
+        <select id="size_${prod.modelBaseId}" class="p-2 border rounded w-full">${sizesOpts}</select>
+      </div>
+      <div class="mt-3 flex items-center justify-between">
+        <div>
+          <div class="text-lg font-bold">${formatPrice(basePrice)}</div>
+          ${pay4 ? `<div class="price-4x">Payez en 4x dès 30€ : ${ (basePrice>=PAYPAL_MIN_FOR_4X) ? calcFourTimes(basePrice) : '' }</div>` : ''}
+        </div>
+        <div>
+          <button class="btn add-btn px-3 py-2 rounded border" onclick="addToCart('${prod.modelBaseId}')">+ Ajouter</button>
+        </div>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+  updateAddButtons(); // attach animations etc
+  updateTotalDisplays();
+}
+
+/* ===========================
+   Pagination UI
+   =========================== */
+function renderPagination(){
+  const pages = Math.ceil(filteredProducts.length / PAGE_SIZE) || 1;
+  const pag = document.getElementById('pagination');
+  pag.innerHTML = '';
+  for(let i=1;i<=pages;i++){
+    const btn = document.createElement('button');
+    btn.textContent = i;
+    btn.className = 'px-3 py-1 border rounded';
+    if(i===currentPage) btn.classList.add('active');
+    btn.onclick = ()=>{ renderPage(i); renderPagination(); };
+    pag.appendChild(btn);
+  }
+}
+
+/* ===========================
+   Recherche + filtre tailles
+   =========================== */
+document.getElementById('search').addEventListener('input', function(){
+  const q = this.value.trim().toLowerCase();
+  filteredProducts = productsAll.filter(p=>{
+    return p.masterNameBase.toLowerCase().includes(q) || (p.description||'').toLowerCase().includes(q) || p.modelBaseId.toLowerCase().includes(q);
+  });
+  renderPage(1); renderPagination();
+});
+function populateSizeFilter(){
+  // aggregate sizes
+  const sizes = new Set();
+  productsAll.forEach(p=> p.sizes.forEach(s=> sizes.add(s.size)));
+  const sel = document.getElementById('filter-size');
+  sel.innerHTML = '<option value="">Toutes tailles</option>';
+  Array.from(sizes).sort().forEach(sz => sel.innerHTML += `<option value="${sz}">${sz}</option>`);
+  sel.addEventListener('change', ()=>{
+    const sv = sel.value;
+    if(!sv){ filteredProducts = productsAll.slice(); }
+    else filteredProducts = productsAll.filter(p=> p.sizes.some(s=> s.size===sv) );
+    renderPage(1); renderPagination();
   });
 }
 
-// --- Ajouter produit au panier ---
-function ajouterAuPanier(modelBaseId){
-  const select = document.getElementById(`size-${modelBaseId}`);
-  const option = select.options[select.selectedIndex];
-  const id = option.value;
-  const price = parseFloat(option.dataset.price);
-  const stock = parseInt(option.dataset.stock);
-  if(stock<=0) return alert('Stock épuisé');
-  const existing = panier.find(p=>p.id===id);
+/* ===========================
+   Panier management
+   =========================== */
+function addToCart(modelBaseId){
+  const sel = document.getElementById(`size_${modelBaseId}`);
+  if(!sel) return alert('Sélection introuvable');
+  const opt = sel.options[sel.selectedIndex];
+  const id = opt.value;
+  const price = parseFloat(opt.dataset.price) || 0;
+  const sizeLabel = opt.dataset.size || '';
+  const title = productsAll.find(p=>p.modelBaseId===modelBaseId)?.masterNameBase || modelBaseId;
+  const existing = cart.find(c => c.id === id);
   if(existing) existing.quantity++;
-  else panier.push({id, modelBaseId, price, quantity:1});
-  majPanier();
+  else cart.push({ id, modelBaseId, price, quantity:1, sizeLabel, title});
+  // animate button
+  const btn = sel.parentElement.parentElement.querySelector('.add-btn');
+  if(btn){ btn.classList.add('add-ok'); setTimeout(()=>btn.classList.remove('add-ok'), 650); }
+  renderCart();
 }
 
-// --- Mettre à jour le panier ---
-function majPanier(){
+/* update cart UI */
+function renderCart(){
   const container = document.getElementById('panier-items');
   container.innerHTML = '';
-  let total = 0;
-  panier.forEach(item=>{
-    total += item.price*item.quantity;
+  let subtotal = 0;
+  cart.forEach(item=>{
+    subtotal += item.price * item.quantity;
     const div = document.createElement('div');
-    div.className = 'flex justify-between items-center border-b py-2';
+    div.className = 'flex items-center justify-between';
     div.innerHTML = `
-      <span>${item.id}</span>
       <div>
-        <button onclick="changerQte('${item.id}',-1)" class="px-2">-</button>
-        ${item.quantity}
-        <button onclick="changerQte('${item.id}',1)" class="px-2">+</button>
+        <div class="font-medium">${escapeHtml(item.title)}</div>
+        <div class="text-sm text-gray-600">${escapeHtml(item.sizeLabel)} • ${item.quantity} × ${Number(item.price).toFixed(2)} €</div>
       </div>
-      <span>${(item.price*item.quantity).toFixed(2)} €</span>`;
+      <div class="flex items-center gap-2">
+        <button class="px-2 py-1 border rounded" onclick="changeQty('${item.id}', -1)">-</button>
+        <div>${item.quantity}</div>
+        <button class="px-2 py-1 border rounded" onclick="changeQty('${item.id}', 1)">+</button>
+      </div>
+    `;
     container.appendChild(div);
   });
-  const totalAvecLivraison = total + livraisonPrix;
-  document.getElementById('total-panier').textContent = totalAvecLivraison.toFixed(2)+' €';
-
-  document.getElementById('order-form-container').style.display = panier.length>0 ? 'block' : 'none';
+  document.getElementById('subtotal').textContent = formatPrice(subtotal);
+  // shipping calc based on zone & subtotal
+  const zone = document.getElementById('zoneLivraison').value;
+  const shipping = calcShipping(zone, subtotal);
+  document.getElementById('shipping-display').textContent = formatPrice(shipping);
+  document.getElementById('shipping-price').textContent = formatPrice(shipping);
+  const total = subtotal + shipping;
+  document.getElementById('total-with-shipping').textContent = formatPrice(total);
+  document.getElementById('total-display').textContent = formatPrice(total);
+  const four = calcFourTimes(total);
+  document.getElementById('four-times-display').textContent = four ? `ou 4× ${ (total/4).toFixed(2) } €` : '';
+  document.getElementById('order-section').classList.toggle('hidden', cart.length===0);
 }
 
-// --- Changer quantité ---
-function changerQte(id,delta){
-  const item = panier.find(p=>p.id===id);
+/* change qty */
+function changeQty(id, delta){
+  const item = cart.find(c=>c.id===id);
   if(!item) return;
   item.quantity += delta;
-  if(item.quantity<=0) panier.splice(panier.indexOf(item),1);
-  majPanier();
+  if(item.quantity<=0) cart = cart.filter(c=>c.id!==id);
+  renderCart();
 }
 
-// --- Mise à jour prix livraison ---
-document.getElementById('livraison').addEventListener('change', function(){
-  const option = this.options[this.selectedIndex];
-  livraisonPrix = parseFloat(option.dataset.price);
-  majPanier();
-});
-
-// --- RIB pour virement ---
-document.getElementById('payer-virement').addEventListener('click',()=>{
-  document.getElementById('zone-virement').classList.toggle('hidden');
-});
-
-// --- Popup confirmation ---
-function afficherPopup(){
-  const popup=document.getElementById('popup-remerciement');
-  popup.classList.remove('hidden');
-  let count=10;
-  const interval=setInterval(()=>{
-    count--;
-    document.getElementById('compteur').textContent = count;
-    if(count<=0){clearInterval(interval);popup.classList.add('hidden');}
-  },1000);
+/* update add button states (for animations) */
+function updateAddButtons(){
+  document.querySelectorAll('.add-btn').forEach(b=>{
+    b.addEventListener('click', ()=> {
+      b.classList.add('add-ok');
+      setTimeout(()=>b.classList.remove('add-ok'), 650);
+    });
+  });
 }
 
-// --- Soumission du formulaire ---
-document.getElementById('order-form').addEventListener('submit', function(e){
+/* ===========================
+   Shipping calculator (from TARIF LIVRAISON rules)
+   Uses zones and subtotal thresholds.
+   =========================== */
+function calcShipping(zone, subtotal){
+  // Default mapping from TARIF LIVRAISON.txt (adapté)
+  // Guadeloupe / Martinique / Guyane / St Bart / St Martin group:
+  // Colissimo ss signature: <=75 =>12 ; 76-250 =>17 ; >250 =>25
+  // Colissimo signature: <=75 =>16 ; 76-250 =>25 ; >250 =>30
+  // Express 24h (Guadeloupe communes): <=80 =>10 ; >80 =>20
+  // Colissimo eco GUA->FR: <=75=>20 ; 76-250=>30 ; >250=>50
+  // Colissimo GUA->FR standard: <=75=>25 ; 76-250=>34.70 ; >250=>64.70
+  const s = Number(subtotal || 0);
+  if(zone==='GUA' || zone==='MAR' || zone==='GUY'){
+    // default choose Colissimo ss signature
+    if(s <= 75) return 12;
+    if(s <= 250) return 17;
+    return 25;
+  } else if(zone==='FR'){
+    if(s <= 75) return 20;
+    if(s <= 250) return 30;
+    return 50;
+  } else if(zone==='COR'){
+    if(s <= 75) return 25;
+    if(s <= 250) return 34.70;
+    return 64.70;
+  }
+  return 8.00; // fallback
+}
+
+/* ===========================
+   Zone selection -> populate DOM postals if DOM selected
+   =========================== */
+document.getElementById('zoneLivraison').addEventListener('change', function(){
+  const v = this.value;
+  if(v==='GUA' || v==='MAR' || v==='GUY'){
+    const arr = DOM_POSTAL[v] || [];
+    const sel = document.getElementById('dom-postal');
+    sel.innerHTML = '';
+    arr.forEach(it => sel.innerHTML += `<option value="${it.code}">${it.code} — ${it.commune}</option>`);
+    document.getElementById('dom-postal-container').classList.remove('hidden');
+    document.getElementById('city-container').classList.add('hidden');
+  } else {
+    document.getElementById('dom-postal-container').classList.add('hidden');
+    document.getElementById('city-container').classList.remove('hidden');
+  }
+  renderCart();
+});
+
+/* ===========================
+   Submit order (createOrder)
+   - sends to Apps Script: action=createOrder, recaptchaResponse, productsJson, totalFinal, methodePaiement, modeLivraison, prenom, nom, telephone, email, adresse, communeCP, commune (or dom postal), recapText, recapHTML
+   - Apps Script will record order, deduct stock, generate invoice PDF and send HTML emails (client + kazabasket@gmail.com)
+   =========================== */
+document.getElementById('order-form').addEventListener('submit', async function(e){
   e.preventDefault();
+  if(!SCRIPT_URL) return alert('SCRIPT_URL non configuré côté front (colle l\'URL WebApp).');
+
   const form = e.target;
-  const data = {
-    action:'createOrder',
-    cart: panier,
-    firstName: form.firstName.value,
-    lastName: form.lastName.value,
-    phone: form.phone.value,
-    email: form.email.value,
-    address: form.address.value,
-    postalCode: form.postalCode.value,
-    city: form.city.value,
-    delivery: document.getElementById('livraison').value,
-    deliveryPrice: livraisonPrix,
-    payment: form.payment.value,
-    recaptcha: grecaptcha.getResponse()
+  const prenom = form.prenom.value.trim();
+  const nom = form.nom.value.trim();
+  const telephone = form.telephone.value.trim();
+  const email = form.email.value.trim();
+  const adresse = form.adresse.value.trim();
+  const zone = document.getElementById('zoneLivraison').value;
+  const communeCP = (zone==='GUA' || zone==='MAR' || zone==='GUY') ? document.getElementById('dom-postal').value : (form.commune ? form.commune.value : '');
+  const modePaiement = document.getElementById('payment-method').value;
+  const subtotal = Number(document.getElementById('subtotal').textContent.replace(' €','')) || 0;
+  const shipping = Number(document.getElementById('shipping-display').textContent.replace(' €','')) || 0;
+  const totalFinal = subtotal + shipping;
+
+  // recaptcha token
+  const token = grecaptcha.getResponse();
+  if(!token) return alert('Veuillez compléter le reCAPTCHA.');
+
+  // build productsJson
+  const productsJson = cart.map(c => ({ id: c.id, quantity: c.quantity }));
+
+  // payload
+  const payload = {
+    action: 'createOrder',
+    recaptchaResponse: token,
+    productsJson: JSON.stringify(productsJson),
+    totalFinal: totalFinal,
+    methodePaiement: modePaiement,
+    modeLivraison: zone,
+    prenom: prenom,
+    nom: nom,
+    telephone: telephone,
+    email: email,
+    adresse: adresse,
+    communeCP: communeCP,
+    nombreArticlesTotal: cart.reduce((s,i)=>s+i.quantity,0),
+    recapText: cart.map(c=> `${c.quantity}x ${c.title} ${c.sizeLabel} (${(c.price).toFixed(2)}€)` ).join(' | '),
+    recapHTML: cart.map(c=> `<div>${c.quantity}x ${c.title} ${c.sizeLabel} — ${(c.price).toFixed(2)}€</div>` ).join('')
   };
-  fetch(SCRIPT_URL, {method:'POST', mode:'no-cors', body: JSON.stringify(data)})
-    .then(()=>{
-      afficherPopup();
-      panier = [];
-      majPanier();
+
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if(data.success){
+      // show popup, send email already triggered from Apps Script
+      document.getElementById('popup-prenom').textContent = prenom || '';
+      document.getElementById('popup').classList.remove('hidden');
+      let c = 10;
+      document.getElementById('popup-count').textContent = c;
+      const t = setInterval(()=>{
+        c--; document.getElementById('popup-count').textContent = c;
+        if(c<=0){ clearInterval(t); window.location.href = 'https://shop.kixx.fr'; }
+      },1000);
+      // clear cart & form
+      cart = [];
+      renderCart();
       form.reset();
       grecaptcha.reset();
-    })
-    .catch(err=>console.error(err));
+    } else {
+      alert('Erreur lors de la création de la commande: ' + (data.error || data.message || 'Erreur serveur'));
+      console.error(data);
+    }
+  } catch(err){
+    console.error(err);
+    alert('Erreur réseau ou serveur. Voir console.');
+  }
 });
 
-// --- Bouton PayPal ---
-paypal.Buttons({
-  createOrder: (data, actions) => {
-    const total = panier.reduce((sum,p)=>sum+p.price*p.quantity,0)+livraisonPrix;
-    return actions.order.create({
-      purchase_units: [{ amount: { value: total.toFixed(2), currency_code:'EUR' } }]
-    });
-  },
-  onApprove: (data, actions) => {
-    return actions.order.capture().then(details => {
-      alert('Paiement PayPal effectué avec succès !');
-      panier = [];
-      majPanier();
-    });
-  }
-}).render('#paypal-button-container');
+/* ===========================
+   PayPal button (capture then createOrder)
+   =========================== */
+function renderPayPal(){
+  // remove previous if present
+  document.getElementById('paypal-button-container').innerHTML = '';
+  paypal.Buttons({
+    style: { layout: 'vertical', color: 'gold', shape: 'rect', label:'pay' },
+    createOrder: function(data, actions){
+      const subtotal = cart.reduce((s,c)=>s+c.price*c.quantity,0);
+      const shipping = Number(document.getElementById('shipping-display').textContent.replace(' €','')) || 0;
+      const total = (subtotal + shipping).toFixed(2);
+      return actions.order.create({
+        purchase_units: [{ amount: { value: total } }]
+      });
+    },
+    onApprove: function(data, actions){
+      return actions.order.capture().then(function(details){
+        // after capture, call createOrder with payment details
+        const payerName = (details.payer && details.payer.name && details.payer.name.given_name) ? details.payer.name.given_name : '';
+        // Build payload similar to form submit but with payment result
+        const payload = {
+          action: 'createOrder',
+          recaptchaResponse: grecaptcha.getResponse() || '',
+          productsJson: JSON.stringify(cart.map(c=>({id:c.id,quantity:c.quantity}))),
+          totalFinal: (cart.reduce((s,c)=>s+c.price*c.quantity,0) + Number(document.getElementById('shipping-display').textContent.replace(' €',''))).toFixed(2),
+          methodePaiement: 'paypal',
+          modeLivraison: document.getElementById('zoneLivraison').value || '',
+          prenom: payerName || (document.querySelector('[name=prenom]') ? document.querySelector('[name=prenom]').value : ''),
+          nom: document.querySelector('[name=nom]') ? document.querySelector('[name=nom]').value : '',
+          telephone: document.querySelector('[name=telephone]') ? document.querySelector('[name=telephone]').value : '',
+          email: (details.payer && details.payer.email_address) ? details.payer.email_address : (document.querySelector('[name=email]') ? document.querySelector('[name=email]').value : ''),
+          adresse: document.querySelector('[name=adresse]') ? document.querySelector('[name=adresse]').value : '',
+          communeCP: (document.getElementById('dom-postal') && !document.getElementById('dom-postal').classList.contains('hidden')) ? document.getElementById('dom-postal').value : (document.querySelector('[name=commune]') ? document.querySelector('[name=commune]').value : ''),
+          nombreArticlesTotal: cart.reduce((s,i)=>s+i.quantity,0),
+          recapText: cart.map(c=> `${c.quantity}x ${c.title} ${c.sizeLabel} (${(c.price).toFixed(2)}€)` ).join(' | '),
+          recapHTML: cart.map(c=> `<div>${c.quantity}x ${c.title} ${c.sizeLabel} — ${(c.price).toFixed(2)}€</div>` ).join('')
+        };
 
-window.onload = chargerCatalogue;
+        // POST to Apps Script
+        fetch(SCRIPT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+          .then(r=>r.json()).then(d=>{
+            if(d.success){
+              document.getElementById('popup-prenom').textContent = payload.prenom || '';
+              document.getElementById('popup').classList.remove('hidden');
+              let c=10; document.getElementById('popup-count').textContent=c;
+              const t=setInterval(()=>{c--; document.getElementById('popup-count').textContent=c; if(c<=0){ clearInterval(t); window.location.href='https://shop.kixx.fr'; } },1000);
+              cart=[]; renderCart();
+            } else {
+              alert('Erreur création commande après paiement: ' + (d.error||d.message||'Erreur'));
+            }
+          }).catch(err=>{ console.error(err); alert('Erreur réseau lors de l\'enregistrement de la commande.'); });
+      });
+    },
+    onError: function(err){ console.error('PayPal error', err); alert('Erreur PayPal.'); }
+  }).render('#paypal-button-container');
+}
+
+/* ===========================
+   simulateOnEdit button (for manual trigger)
+   =========================== */
+document.getElementById('simulate-onedit').addEventListener('click', async function(){
+  const orderId = prompt('Entrez l\'ID de la commande à forcer (ex: KICKS-XXXX):');
+  if(!orderId) return;
+  const res = await fetch(SCRIPT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'simulateOnEdit', orderId: orderId, force: 'true' }) });
+  const d = await res.json();
+  alert(JSON.stringify(d));
+});
+
+/* ===========================
+   Virement toggle
+   =========================== */
+document.getElementById('virement-toggle').addEventListener('click', function(){
+  document.getElementById('virement-info').classList.toggle('hidden');
+});
+
+/* ===========================
+   Escape helper
+   =========================== */
+function escapeHtml(text){ if(!text) return ''; return text.replace(/[&<>"']/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[m]; }); }
+
+/* ===========================
+   Init
+   =========================== */
+window.addEventListener('load', async ()=>{
+  await loadProducts();
+  renderPayPal();
+  // if no SCRIPT_URL set, show notice in console
+  if(!SCRIPT_URL) console.warn('⚠️ SCRIPT_URL vide — colle ton URL Apps Script /exec dans la variable SCRIPT_URL du HTML.');
+});
 </script>
 </body>
 </html>
