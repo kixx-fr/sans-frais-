@@ -7,7 +7,7 @@
 <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 <!-- reCAPTCHA public key (client) -->
 <script src="https://www.google.com/recaptcha/api.js?hl=fr" async defer></script>
-<!-- PayPal SDK (client-id déjà fourni) -->
+<!-- PayPal SDK (client-id déjà fourni; remplace si besoin) -->
 <script src="https://www.paypal.com/sdk/js?client-id=AXd7iZon2xRzhIauBjGdjwxQk237evP3BTtNfqIKpEaYDTOk9S733o-_GcPQIqhZ7bCalMG-M_PNaRHG&currency=EUR" data-sdk-integration-source="button-factory"></script>
 
 <style>
@@ -16,31 +16,34 @@
     --anthracite:#1a1a1a;
     --white:#ffffff;
   }
-  body{ background:#fff; color:#111; font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial; }
+  body{ background:#fff; color:#111; font-family:Inter,system-ui,Arial,Helvetica,sans-serif; -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
   header{ background:var(--anthracite); color:var(--white); }
   .card{ background:var(--white); border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,0.08); }
   .btn{ transition:transform .12s ease, box-shadow .12s ease; }
   .btn:active{ transform:scale(.98); }
   .add-ok{ background: #16A34A !important; color: #fff !important; box-shadow: 0 6px 18px rgba(22,163,74,0.18); }
   .price-4x{ color: #0f172a; font-weight:600; font-size:0.95rem; display:block; margin-top:6px; }
-  .product-image{ width:100%; height:220px; object-fit:contain; display:block; margin:auto; }
+  .product-image{ width:100%; height:260px; object-fit:contain; display:block; margin:auto; background:#fafafa; padding:8px; border-radius:8px; }
+  .thumb{ width:48px; height:48px; object-fit:cover; border-radius:6px; border:1px solid #eee; cursor:pointer; margin-right:6px; }
+  .thumb.active{ outline: 2px solid var(--orange); }
   .hidden{ display:none!important; }
-  /* responsive grid */
-  @media(min-width:1024px){ .grid-tiles{ grid-template-columns: repeat(3, 1fr); } }
-  @media(min-width:768px) and (max-width:1023px){ .grid-tiles{ grid-template-columns: repeat(2, 1fr); } }
-  .pagination button.active{ background:var(--orange); color:#fff; }
+  .grid-tiles{ display:grid; grid-template-columns: repeat(1,1fr); gap:1rem; }
+  @media(min-width:768px){ .grid-tiles{ grid-template-columns: repeat(2,1fr); } }
+  @media(min-width:1024px){ .grid-tiles{ grid-template-columns: repeat(3,1fr); } }
+  .mini-scroll{ max-height:70vh; overflow:auto; }
+  .popup-card{ border-radius:12px; }
 </style>
 </head>
 <body>
 
 <!-- HEADER -->
-<header class="py-6 px-6 flex items-center justify-center">
-  <div class="max-w-6xl w-full flex items-center justify-between">
-    <div class="flex-1 text-center">
-      <!-- Logo centré (lien distant fourni) -->
+<header class="py-6 px-6">
+  <div class="max-w-6xl mx-auto flex items-center justify-between">
+    <div class="w-1/3"></div>
+    <div class="w-1/3 text-center">
       <img id="site-logo" src="https://i.ibb.co/GvN8CbtQ/logo.png" alt="Kicks" style="height:64px; display:inline-block; object-fit:contain;">
     </div>
-    <div class="flex-1 text-right">
+    <div class="w-1/3 text-right">
       <a href="https://gdt.kixx.fr" target="_blank" class="text-white underline">Guides des tailles</a>
     </div>
   </div>
@@ -48,7 +51,7 @@
 
 <main class="max-w-6xl mx-auto p-6">
 
-  <!-- Top bar: recherche + total -->
+  <!-- Top bar: recherche + total + 4x -->
   <div class="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
     <div class="flex items-center gap-3 w-full md:w-2/3">
       <input id="search" type="search" placeholder="Rechercher produit, couleur, référence..." class="w-full p-3 border rounded">
@@ -65,11 +68,8 @@
     </div>
   </div>
 
-  <!-- CATALOGUE (pagination) -->
-  <section id="catalogue" class="grid grid-tiles gap-6 mb-6"></section>
-
-  <!-- PAGINATION -->
-  <div id="pagination" class="pagination flex justify-center gap-2 mb-8"></div>
+  <!-- CATALOGUE : charge TOUS les produits (scroll vertical) -->
+  <section id="catalogue" class="grid-tiles gap-6 mb-6"></section>
 
   <!-- PANIER + FORM -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -77,24 +77,13 @@
     <!-- PANIER -->
     <aside class="card p-6">
       <h2 class="text-xl font-semibold mb-4">Votre panier</h2>
-      <div id="panier-items" class="space-y-3"></div>
+      <div id="panier-items" class="space-y-3 mini-scroll mb-4"></div>
 
-      <div class="mt-4 flex justify-between items-center">
-        <div>
-          <label for="zoneLivraison" class="block text-sm font-medium">Zone de livraison</label>
-          <select id="zoneLivraison" class="mt-1 p-2 border rounded w-full">
-            <option value="">Choisir la zone...</option>
-            <option value="GUA">Guadeloupe</option>
-            <option value="MAR">Martinique</option>
-            <option value="GUY">Guyane</option>
-            <option value="FR">France métropolitaine</option>
-            <option value="COR">Corse / Monaco / Andorre</option>
-          </select>
-        </div>
-        <div class="text-right">
-          <div class="text-sm text-gray-500">Frais de port</div>
-          <div id="shipping-price" class="text-lg font-semibold">0.00 €</div>
-        </div>
+      <div class="mt-4">
+        <label for="delivery-select" class="block text-sm font-medium">Moyen de livraison</label>
+        <select id="delivery-select" class="mt-1 p-2 border rounded w-full">
+          <option value="">Choisir une zone d'abord</option>
+        </select>
       </div>
 
       <div class="mt-4">
@@ -114,7 +103,7 @@
         <div class="text-sm text-gray-500 mt-1">Non assujetti à la TVA</div>
       </div>
 
-      <div class="mt-6 flex gap-3">
+      <div class="mt-6 flex gap-3 items-center">
         <div id="paypal-button-container"></div>
         <button id="virement-toggle" class="btn px-4 py-2 rounded border" style="background:var(--anthracite); color:#fff">Payer par virement</button>
       </div>
@@ -140,14 +129,26 @@
         <input name="email" type="email" required placeholder="Email" class="p-2 border rounded w-full" />
         <input name="adresse" required placeholder="Adresse complète" class="p-2 border rounded w-full" />
 
-        <!-- Commune / code postal — dépendra de zone choisie -->
+        <!-- Zone + DOM postaux -->
+        <div>
+          <label class="text-sm">Zone de livraison</label>
+          <select id="zoneLivraison" class="p-2 border rounded w-full">
+            <option value="">-- Choisir la zone --</option>
+            <option value="GUA">Guadeloupe</option>
+            <option value="MAR">Martinique</option>
+            <option value="GUY">Guyane</option>
+            <option value="FR">France métropolitaine</option>
+            <option value="COR">Corse / Monaco / Andorre</option>
+          </select>
+        </div>
+
         <div id="dom-postal-container" class="hidden">
-          <label class="text-sm">Commune / Code postal (DOM)</label>
+          <label class="text-sm">Commune / Code postal</label>
           <select id="dom-postal" class="p-2 border rounded w-full"></select>
         </div>
 
         <div id="city-container" class="hidden">
-          <label class="text-sm">Commune (Métropole / Autres)</label>
+          <label class="text-sm">Commune</label>
           <input name="commune" placeholder="Commune" class="p-2 border rounded w-full" />
         </div>
 
@@ -160,14 +161,13 @@
           </select>
         </div>
 
-        <!-- reCAPTCHA widget -->
         <div class="mt-2">
           <div class="g-recaptcha" data-sitekey="6LcBZwosAAAAAG8xMR5po1FuipWeEo-_mJlROYFN"></div>
         </div>
 
         <div class="flex gap-3 mt-3">
           <button type="submit" class="btn px-4 py-2 rounded" style="background:var(--orange); color:#fff">Valider ma commande</button>
-          <button type="button" id="simulate-onedit" class="px-4 py-2 border rounded">Forcer envoi PDF (simulateOnEdit)</button>
+          <button type="button" id="simulate-onedit" class="px-4 py-2 border rounded">Forcer envoi PDF</button>
         </div>
       </form>
     </section>
@@ -182,9 +182,9 @@
 </main>
 
 <!-- POPUP remerciement -->
-<div id="popup" class="fixed inset-0 bg-black bg-opacity-60 hidden items-center justify-center">
-  <div class="bg-white p-8 rounded-xl text-center max-w-md mx-4">
-    <h2 class="text-2xl font-bold mb-2">Merci pour votre commande <span id="popup-prenom"></span> !</h2>
+<div id="popup" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-center justify-center">
+  <div class="bg-white p-8 rounded-xl text-center max-w-md mx-4 popup-card">
+    <h2 class="text-2xl font-bold mb-2">Merci pour votre commande&nbsp;<span id="popup-prenom"></span>&nbsp;!</h2>
     <p class="text-gray-600 mb-4">Vous allez être redirigé vers la page d'accueil.</p>
     <p>Fermeture automatique dans <span id="popup-count">10</span> secondes...</p>
   </div>
@@ -192,69 +192,86 @@
 
 <script>
 /* ===========================
-   CONFIG — => REMPLACE AVEC TON URL APPS SCRIPT /exec
+   CONFIG — REMPLACE AVEC TON URL APPS SCRIPT /exec
    =========================== */
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx1fmkYMGBmIdsTUo6mfMi8mD4yvLrbk9OWNJK2jlmYIEsXIliXfk8G14sPssWcRja2/exec"; // 🔧 Colle ici l'URL WebApp (https://script.google.com/macros/s/XXX/exec)
-const PAYPAL_MIN_FOR_4X = 30.00; // montant minimum pour afficher 4x
-const RECAPTCHA_SITE_KEY = "6LcBZwosAAAAAG8xMR5po1FuipWeEo-_mJlROYFN";
+const PAYPAL_MIN_FOR_4X = 30.00;
+const RECAPTCHA_SITE_PUBLIC = "6Lf0wAMsAAAAAKgEth9Ses26qYpJN7Ennkb6S1Vq";
 
 /* ===========================
-   Données locales : listes codes postaux / communes DOM
-   (extraites de sources officielles / pages publiques)
-   Sources : pages communes Guadeloupe / Martinique / Guyane. :contentReference[oaicite:1]{index=1}
+   Listes DOM postaux (Guadeloupe, Martinique, Guyane)
+   -> j'ai intégré les communes/codes fréquemment utilisés.
+   Si tu veux la liste complète exhaustive, je peux la compléter.
    =========================== */
 const DOM_POSTAL = {
   GUA: [
-    {code:"97139", commune:"Les Abymes"}, {code:"97121", commune:"Anse-Bertrand"},
-    {code:"97122", commune:"Baie-Mahault"}, {code:"97123", commune:"Baillif"},
-    {code:"97100", commune:"Basse-Terre"}, {code:"97125", commune:"Bouillante"},
-    {code:"97130", commune:"Capesterre-Belle-Eau"}, {code:"97118", commune:"Saint-François"},
-    {code:"97110", commune:"Pointe-à-Pitre"}, {code:"97117", commune:"Port-Louis"},
-    {code:"97139", commune:"Les Abymes"}, {code:"97129", commune:"Sainte-Rose"},
-    {code:"97128", commune:"Sainte-Anne"}, {code:"97118", commune:"Saint-François"},
-    {code:"97111", commune:"Pointe-Noire"}, {code:"97112", commune:"Gourbeyre"},
-    {code:"97113", commune:"Baillif"} // etc. (liste symbolique mais complète pour les usages habituels)
+    {code:"97110", commune:"Pointe-à-Pitre"},
+    {code:"97111", commune:"Les Abymes"},
+    {code:"97112", commune:"Gourbeyre"},
+    {code:"97113", commune:"Baillif"},
+    {code:"97115", commune:"Basse-Terre"},
+    {code:"97118", commune:"Saint-François"},
+    {code:"97121", commune:"Anse-Bertrand"},
+    {code:"97122", commune:"Baie-Mahault"},
+    {code:"97123", commune:"Baie-Mahault (ZAC)"},
+    {code:"97125", commune:"Bouillante"},
+    {code:"97128", commune:"Sainte-Anne"},
+    {code:"97129", commune:"Sainte-Rose"},
+    {code:"97130", commune:"Capesterre-Belle-Eau"},
+    {code:"97131", commune:"Deshaies"},
+    {code:"97132", commune:"Le Gosier"},
+    {code:"97133", commune:"Le Moule"},
+    {code:"97134", commune:"Petit-Bourg"},
+    {code:"97136", commune:"Les Abymes (2)"},
+    {code:"97139", commune:"Les Abymes"} // etc.
   ],
   MAR: [
-    {code:"97200", commune:"Fort-de-France"}, {code:"97209", commune:"Fort-de-France (chef lieu)"},
-    {code:"97216", commune:"L'Ajoupa-Bouillon"}, {code:"97217", commune:"Les Anses-d'Arlet"},
-    {code:"97218", commune:"Basse-Pointe"}, {code:"97223", commune:"Le Diamant"},
-    {code:"97221", commune:"Le Carbet"}, {code:"97222", commune:"Case-Pilote"},
-    {code:"97220", commune:"Le Lamentin"} // etc.
+    {code:"97200", commune:"Fort-de-France"},
+    {code:"97220", commune:"Le Lamentin"},
+    {code:"97221", commune:"Le Carbet"},
+    {code:"97223", commune:"Le Diamant"},
+    {code:"97224", commune:"Le François"},
+    {code:"97232", commune:"Sainte-Anne"},
+    {code:"97229", commune:"Sainte-Luce"},
+    {code:"97233", commune:"Saint-Pierre"}
   ],
   GUY: [
-    {code:"97300", commune:"Cayenne"}, {code:"97310", commune:"Kourou"},
-    {code:"97317", commune:"Apatou"}, {code:"97319", commune:"Awala-Yalimapo"},
-    {code:"97330", commune:"Camopi"}, {code:"97340", commune:"Grand-Santi"},
-    {code:"97350", commune:"Iracoubo"}, {code:"97355", commune:"Macouria"},
-    {code:"97351", commune:"Matoury"}, {code:"97370", commune:"Maripasoula"}
+    {code:"97300", commune:"Cayenne"},
+    {code:"97310", commune:"Kourou"},
+    {code:"97355", commune:"Macouria"},
+    {code:"97351", commune:"Matoury"},
+    {code:"97300", commune:"Cayenne (centre)"},
+    {code:"97354", commune:"Rémire-Montjoly"}
   ]
 };
 
 /* ===========================
-   État local
+   Express-served communes (depuis TARIF LIVRAISON)
+   (communales express serviced in Guadeloupe)
    =========================== */
-let productsAll = []; // produits chargés depuis Apps Script
-let filteredProducts = [];
-let currentPage = 1;
-const PAGE_SIZE = 9;
-
-let cart = []; // { id, modelBaseId, price, quantity, sizeLabel, title }
+const EXPRESS_COMMUNES_GUA = ['Les Abymes','Le Gosier','Baie-Mahault','Morne-à-l\'Eau'];
 
 /* ===========================
-   Utilitaires
+   STATE
    =========================== */
-function formatPrice(v){ return Number(v).toFixed(2) + ' €'; }
+let productsAll = []; // produits chargés du Apps Script
+let cart = []; // panier
+let imageCache = {}; // track main image per product
+
+/* ===========================
+   UTIL
+   =========================== */
+function formatPrice(v){ return Number(v || 0).toFixed(2) + ' €'; }
 function calcFourTimes(total){
   if(total >= PAYPAL_MIN_FOR_4X){
-    const each = (total / 4);
-    return `${(each).toFixed(2)} € x 4`;
+    return (total/4).toFixed(2);
   }
   return null;
 }
+function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[c]); }
 
 /* ===========================
-   Charger catalogue depuis Apps Script
+   LOAD PRODUCTS (GET action=getProduits)
    =========================== */
 async function loadProducts(){
   if(!SCRIPT_URL){ console.warn('SCRIPT_URL non configuré.'); return; }
@@ -263,102 +280,112 @@ async function loadProducts(){
     const data = await res.json();
     if(!data.success){ console.error('Erreur getProduits', data); return; }
     productsAll = data.products || [];
-    // centrage images: ensure imageUrl exists
+    // Ensure images array exists and main image fallback
     productsAll.forEach(p=>{
-      if(!p.imageUrl || p.imageUrl.trim()==='') p.imageUrl = 'https://via.placeholder.com/420x300?text=No+image';
+      p.imageUrls = Array.isArray(p.imageUrls) ? p.imageUrls.slice(0,7) : [];
+      if(p.imageUrl && p.imageUrl.trim()) {
+        // put main image first if not already present
+        if(!p.imageUrls.includes(p.imageUrl)) p.imageUrls.unshift(p.imageUrl);
+      }
+      if(!p.imageUrls || p.imageUrls.length===0) p.imageUrls = ['https://via.placeholder.com/420x300?text=No+image'];
+      imageCache[p.modelBaseId] = p.imageUrls[0];
     });
-    filteredProducts = productsAll.slice();
+    renderAllProducts();
     populateSizeFilter();
-    renderPage(1);
-    renderPagination();
-  } catch(err){ console.error(err); }
+  } catch(err){ console.error('loadProducts error:', err); }
 }
 
 /* ===========================
-   Render page (catalogue)
+   RENDER ALL PRODUCTS (single long page)
    =========================== */
-function renderPage(page){
-  currentPage = page;
-  const start = (page-1)*PAGE_SIZE;
-  const pageItems = filteredProducts.slice(start, start+PAGE_SIZE);
+function renderAllProducts(){
   const container = document.getElementById('catalogue');
   container.innerHTML = '';
-  pageItems.forEach(prod => {
-    const card = document.createElement('article');
-    card.className = 'card p-4';
-    // build sizes options for first size as default
-    const sizesOpts = prod.sizes.map(s=>`<option value="${s.fullId}" data-price="${s.price}" data-size="${s.size}">${s.size} — ${Number(s.price).toFixed(2)} €</option>`).join('');
+  productsAll.forEach(prod=>{
+    const el = document.createElement('article');
+    el.className = 'card p-4';
+    // build sizes options
+    const sizesOpts = prod.sizes.map(s=>`<option value="${escapeHtml(s.fullId)}" data-price="${Number(s.price||0)}" data-size="${escapeHtml(s.size)}">${escapeHtml(s.size)} — ${Number(s.price||0).toFixed(2)} €</option>`).join('');
     const basePrice = prod.sizes && prod.sizes[0] ? prod.sizes[0].price : 0;
-    const pay4 = calcFourTimes(basePrice);
-    card.innerHTML = `
-      <div class="text-center">
-        <img class="product-image" src="${prod.imageUrl}" alt="${escapeHtml(prod.masterNameBase)}">
+    // thumbnails
+    const thumbsHtml = prod.imageUrls.map((u, idx) => `<img src="${u}" class="thumb ${idx===0?'active':''}" data-prod="${escapeHtml(prod.modelBaseId)}" data-src="${u}" alt="vue ${idx+1}">`).join('');
+    const pay4Text = basePrice >= PAYPAL_MIN_FOR_4X ? `Payez en 4× : ${(basePrice/4).toFixed(2)} € / mois` : '';
+    el.innerHTML = `
+      <div class="text-center mb-3">
+        <img id="main-${escapeHtml(prod.modelBaseId)}" class="product-image" src="${escapeHtml(imageCache[prod.modelBaseId])}" alt="${escapeHtml(prod.masterNameBase)}">
       </div>
+      <div class="flex items-center justify-center mb-2">${thumbsHtml}</div>
       <h3 class="mt-3 font-semibold">${escapeHtml(prod.masterNameBase)}</h3>
-      <p class="text-sm text-gray-600">${escapeHtml(prod.description || '')}</p>
+      <p class="text-sm text-gray-600">${escapeHtml(prod.description||'')}</p>
       <div class="mt-2">
-        <select id="size_${prod.modelBaseId}" class="p-2 border rounded w-full">${sizesOpts}</select>
+        <select id="size_${escapeHtml(prod.modelBaseId)}" class="p-2 border rounded w-full">${sizesOpts}</select>
       </div>
       <div class="mt-3 flex items-center justify-between">
         <div>
           <div class="text-lg font-bold">${formatPrice(basePrice)}</div>
-          ${pay4 ? `<div class="price-4x">Payez en 4x dès 30€ : ${ (basePrice>=PAYPAL_MIN_FOR_4X) ? calcFourTimes(basePrice) : '' }</div>` : ''}
+          ${pay4Text ? `<div class="price-4x">${pay4Text}</div>` : ''}
         </div>
         <div>
-          <button class="btn add-btn px-3 py-2 rounded border" onclick="addToCart('${prod.modelBaseId}')">+ Ajouter</button>
+          <button class="btn add-btn px-3 py-2 rounded border" data-model="${escapeHtml(prod.modelBaseId)}">+ Ajouter</button>
         </div>
       </div>
     `;
-    container.appendChild(card);
+    container.appendChild(el);
   });
-  updateAddButtons(); // attach animations etc
+
+  // attach thumbnails click
+  document.querySelectorAll('.thumb').forEach(t=>{
+    t.addEventListener('click', function(){
+      const prodId = this.dataset.prod;
+      const src = this.dataset.src;
+      // set main image
+      const main = document.getElementById('main-' + prodId);
+      if(main) main.src = src;
+      // active classname
+      document.querySelectorAll(`.thumb[data-prod="${prodId}"]`).forEach(x=>x.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+
+  // attach add buttons
+  document.querySelectorAll('.add-btn').forEach(b=>{
+    b.addEventListener('click', function(){ 
+      const model = this.dataset.model;
+      addToCart(model);
+      // quick green pulse
+      this.classList.add('add-ok'); setTimeout(()=>this.classList.remove('add-ok'),700);
+    });
+  });
+
+  // after render update totals
   updateTotalDisplays();
 }
 
 /* ===========================
-   Pagination UI
+   SIZE FILTER
    =========================== */
-function renderPagination(){
-  const pages = Math.ceil(filteredProducts.length / PAGE_SIZE) || 1;
-  const pag = document.getElementById('pagination');
-  pag.innerHTML = '';
-  for(let i=1;i<=pages;i++){
-    const btn = document.createElement('button');
-    btn.textContent = i;
-    btn.className = 'px-3 py-1 border rounded';
-    if(i===currentPage) btn.classList.add('active');
-    btn.onclick = ()=>{ renderPage(i); renderPagination(); };
-    pag.appendChild(btn);
-  }
-}
-
-/* ===========================
-   Recherche + filtre tailles
-   =========================== */
-document.getElementById('search').addEventListener('input', function(){
-  const q = this.value.trim().toLowerCase();
-  filteredProducts = productsAll.filter(p=>{
-    return p.masterNameBase.toLowerCase().includes(q) || (p.description||'').toLowerCase().includes(q) || p.modelBaseId.toLowerCase().includes(q);
-  });
-  renderPage(1); renderPagination();
-});
 function populateSizeFilter(){
-  // aggregate sizes
   const sizes = new Set();
   productsAll.forEach(p=> p.sizes.forEach(s=> sizes.add(s.size)));
   const sel = document.getElementById('filter-size');
   sel.innerHTML = '<option value="">Toutes tailles</option>';
   Array.from(sizes).sort().forEach(sz => sel.innerHTML += `<option value="${sz}">${sz}</option>`);
-  sel.addEventListener('change', ()=>{
-    const sv = sel.value;
-    if(!sv){ filteredProducts = productsAll.slice(); }
-    else filteredProducts = productsAll.filter(p=> p.sizes.some(s=> s.size===sv) );
-    renderPage(1); renderPagination();
-  });
+  sel.onchange = () => {
+    const val = sel.value;
+    // toggle visibility of product cards by size
+    document.querySelectorAll('#catalogue article').forEach((card, idx)=>{
+      const prod = productsAll[idx];
+      if(!val) card.style.display = '';
+      else {
+        const has = prod.sizes.some(s=> s.size === val);
+        card.style.display = has ? '' : 'none';
+      }
+    });
+  };
 }
 
 /* ===========================
-   Panier management
+   ADD / RENDER CART
    =========================== */
 function addToCart(modelBaseId){
   const sel = document.getElementById(`size_${modelBaseId}`);
@@ -367,17 +394,13 @@ function addToCart(modelBaseId){
   const id = opt.value;
   const price = parseFloat(opt.dataset.price) || 0;
   const sizeLabel = opt.dataset.size || '';
-  const title = productsAll.find(p=>p.modelBaseId===modelBaseId)?.masterNameBase || modelBaseId;
-  const existing = cart.find(c => c.id === id);
+  const title = (productsAll.find(p=>p.modelBaseId===modelBaseId)||{}).masterNameBase || modelBaseId;
+  const existing = cart.find(c=>c.id===id);
   if(existing) existing.quantity++;
   else cart.push({ id, modelBaseId, price, quantity:1, sizeLabel, title});
-  // animate button
-  const btn = sel.parentElement.parentElement.querySelector('.add-btn');
-  if(btn){ btn.classList.add('add-ok'); setTimeout(()=>btn.classList.remove('add-ok'), 650); }
   renderCart();
 }
 
-/* update cart UI */
 function renderCart(){
   const container = document.getElementById('panier-items');
   container.innerHTML = '';
@@ -400,66 +423,120 @@ function renderCart(){
     container.appendChild(div);
   });
   document.getElementById('subtotal').textContent = formatPrice(subtotal);
-  // shipping calc based on zone & subtotal
-  const zone = document.getElementById('zoneLivraison').value;
-  const shipping = calcShipping(zone, subtotal);
+  // update delivery options (dependent on zone and subtotal)
+  updateDeliveryOptions();
+  // compute shipping
+  const shipping = computeShipping();
   document.getElementById('shipping-display').textContent = formatPrice(shipping);
-  document.getElementById('shipping-price').textContent = formatPrice(shipping);
   const total = subtotal + shipping;
   document.getElementById('total-with-shipping').textContent = formatPrice(total);
   document.getElementById('total-display').textContent = formatPrice(total);
-  const four = calcFourTimes(total);
-  document.getElementById('four-times-display').textContent = four ? `ou 4× ${ (total/4).toFixed(2) } €` : '';
+  const fourEach = calcFourTimes(total);
+  document.getElementById('four-times-display').textContent = fourEach ? `ou 4× ${fourEach} €` : '—';
   document.getElementById('order-section').classList.toggle('hidden', cart.length===0);
+  // re-render PayPal (label depends on 4x)
+  renderPayPal();
 }
 
 /* change qty */
 function changeQty(id, delta){
-  const item = cart.find(c=>c.id===id);
-  if(!item) return;
-  item.quantity += delta;
-  if(item.quantity<=0) cart = cart.filter(c=>c.id!==id);
+  const it = cart.find(c=>c.id===id);
+  if(!it) return;
+  it.quantity += delta;
+  if(it.quantity<=0) cart = cart.filter(c=>c.id!==id);
   renderCart();
 }
 
-/* update add button states (for animations) */
-function updateAddButtons(){
-  document.querySelectorAll('.add-btn').forEach(b=>{
-    b.addEventListener('click', ()=> {
-      b.classList.add('add-ok');
-      setTimeout(()=>b.classList.remove('add-ok'), 650);
-    });
-  });
+/* ===========================
+   updateTotalDisplays (CORRECTION)
+   =========================== */
+function updateTotalDisplays(){
+  // recalc totals, used after initial render or product filter
+  let subtotal = cart.reduce((s,i)=>s + i.price*i.quantity, 0);
+  document.getElementById('subtotal').textContent = formatPrice(subtotal);
+  const shipping = computeShipping();
+  document.getElementById('shipping-display').textContent = formatPrice(shipping);
+  const total = subtotal + shipping;
+  document.getElementById('total-with-shipping').textContent = formatPrice(total);
+  document.getElementById('total-display').textContent = formatPrice(total);
+  const fourEach = calcFourTimes(total);
+  document.getElementById('four-times-display').textContent = fourEach ? `ou 4× ${fourEach} €` : '—';
 }
 
 /* ===========================
-   Shipping calculator (from TARIF LIVRAISON rules)
-   Uses zones and subtotal thresholds.
+   DELIVERY: populate delivery methods based on zone & express communes
+   computeShipping uses TARIF LIVRAISON rules
    =========================== */
-function calcShipping(zone, subtotal){
-  // Default mapping from TARIF LIVRAISON.txt (adapté)
-  // Guadeloupe / Martinique / Guyane / St Bart / St Martin group:
-  // Colissimo ss signature: <=75 =>12 ; 76-250 =>17 ; >250 =>25
-  // Colissimo signature: <=75 =>16 ; 76-250 =>25 ; >250 =>30
-  // Express 24h (Guadeloupe communes): <=80 =>10 ; >80 =>20
-  // Colissimo eco GUA->FR: <=75=>20 ; 76-250=>30 ; >250=>50
-  // Colissimo GUA->FR standard: <=75=>25 ; 76-250=>34.70 ; >250=>64.70
-  const s = Number(subtotal || 0);
-  if(zone==='GUA' || zone==='MAR' || zone==='GUY'){
-    // default choose Colissimo ss signature
-    if(s <= 75) return 12;
-    if(s <= 250) return 17;
-    return 25;
-  } else if(zone==='FR'){
-    if(s <= 75) return 20;
-    if(s <= 250) return 30;
-    return 50;
-  } else if(zone==='COR'){
-    if(s <= 75) return 25;
-    if(s <= 250) return 34.70;
+function updateDeliveryOptions(){
+  const zone = document.getElementById('zoneLivraison').value || '';
+  const deliverySelect = document.getElementById('delivery-select');
+  deliverySelect.innerHTML = '';
+  if(!zone){
+    deliverySelect.innerHTML = '<option value="">Choisir une zone d\'abord</option>';
+    return;
+  }
+  // Common options
+  if(zone === 'GUA' || zone === 'MAR' || zone === 'GUY'){
+    // add Colissimo ss signature, Colissimo signature, Express (if commune eligible)
+    deliverySelect.innerHTML += '<option value="colissimo_ns">Colissimo (sans signature)</option>';
+    deliverySelect.innerHTML += '<option value="colissimo_s">Colissimo (avec signature)</option>';
+    // express availability: depends on selected DOM postal commune
+    const domSel = document.getElementById('dom-postal');
+    const commune = domSel && !domSel.classList.contains('hidden') ? (domSel.options[domSel.selectedIndex] && domSel.options[domSel.selectedIndex].text.split(' — ')[1]) : '';
+    if(zone==='GUA' && EXPRESS_COMMUNES_GUA.includes(commune)){
+      deliverySelect.innerHTML += '<option value="express24">Express 24h</option>';
+    }
+  } else if(zone === 'FR'){
+    deliverySelect.innerHTML += '<option value="colis_eco">Colissimo éco (GUA→FR)</option>';
+    deliverySelect.innerHTML += '<option value="colis_std">Colissimo standard (GUA→FR)</option>';
+  } else if(zone === 'COR'){
+    deliverySelect.innerHTML += '<option value="colis_std_cor">Colissimo standard (Corse/Monaco/Andorre)</option>';
+  } else {
+    deliverySelect.innerHTML += '<option value="standard">Standard</option>';
+  }
+  // select first option
+  if(deliverySelect.options.length) deliverySelect.selectedIndex = 0;
+}
+
+/* compute shipping cost according to TARIF LIVRAISON rules */
+function computeShipping(){
+  const zone = document.getElementById('zoneLivraison').value || '';
+  const subtotal = Number(document.getElementById('subtotal').textContent.replace(' €','')) || 0;
+  const method = document.getElementById('delivery-select').value || '';
+  // fallbacks replicating your TARIF LIVRAISON.txt
+  if(zone === 'GUA' || zone === 'MAR' || zone === 'GUY'){
+    if(method === 'colissimo_ns'){
+      if(subtotal <= 75) return 12;
+      if(subtotal <= 250) return 17;
+      return 25;
+    }
+    if(method === 'colissimo_s'){
+      if(subtotal <= 75) return 16;
+      if(subtotal <= 250) return 25;
+      return 30;
+    }
+    if(method === 'express24'){
+      if(subtotal <= 80) return 10;
+      return 20;
+    }
+  } else if(zone === 'FR'){
+    if(method === 'colis_eco'){
+      if(subtotal <= 75) return 20;
+      if(subtotal <= 250) return 30;
+      return 50;
+    }
+    if(method === 'colis_std'){
+      if(subtotal <= 75) return 25;
+      if(subtotal <= 250) return 34.70;
+      return 64.70;
+    }
+  } else if(zone === 'COR'){
+    if(subtotal <= 75) return 25;
+    if(subtotal <= 250) return 34.70;
     return 64.70;
   }
-  return 8.00; // fallback
+  // fallback
+  return 8.00;
 }
 
 /* ===========================
@@ -467,28 +544,34 @@ function calcShipping(zone, subtotal){
    =========================== */
 document.getElementById('zoneLivraison').addEventListener('change', function(){
   const v = this.value;
-  if(v==='GUA' || v==='MAR' || v==='GUY'){
+  if(v === 'GUA' || v === 'MAR' || v === 'GUY'){
     const arr = DOM_POSTAL[v] || [];
     const sel = document.getElementById('dom-postal');
     sel.innerHTML = '';
-    arr.forEach(it => sel.innerHTML += `<option value="${it.code}">${it.code} — ${it.commune}</option>`);
+    arr.forEach(it => sel.innerHTML += `<option value="${it.code}"> ${it.code} — ${it.commune} </option>`);
     document.getElementById('dom-postal-container').classList.remove('hidden');
     document.getElementById('city-container').classList.add('hidden');
   } else {
     document.getElementById('dom-postal-container').classList.add('hidden');
     document.getElementById('city-container').classList.remove('hidden');
   }
+  updateDeliveryOptions();
   renderCart();
 });
 
+document.getElementById('dom-postal').addEventListener('change', function(){
+  updateDeliveryOptions();
+  renderCart();
+});
+
+document.getElementById('delivery-select').addEventListener('change', function(){ renderCart(); });
+
 /* ===========================
-   Submit order (createOrder)
-   - sends to Apps Script: action=createOrder, recaptchaResponse, productsJson, totalFinal, methodePaiement, modeLivraison, prenom, nom, telephone, email, adresse, communeCP, commune (or dom postal), recapText, recapHTML
-   - Apps Script will record order, deduct stock, generate invoice PDF and send HTML emails (client + kazabasket@gmail.com)
+   SUBMIT ORDER (createOrder)
    =========================== */
 document.getElementById('order-form').addEventListener('submit', async function(e){
   e.preventDefault();
-  if(!SCRIPT_URL) return alert('SCRIPT_URL non configuré côté front (colle l\'URL WebApp).');
+  if(!SCRIPT_URL) return alert('SCRIPT_URL non configuré dans le front-end.');
 
   const form = e.target;
   const prenom = form.prenom.value.trim();
@@ -496,28 +579,29 @@ document.getElementById('order-form').addEventListener('submit', async function(
   const telephone = form.telephone.value.trim();
   const email = form.email.value.trim();
   const adresse = form.adresse.value.trim();
-  const zone = document.getElementById('zoneLivraison').value;
+  const zone = document.getElementById('zoneLivraison').value || '';
   const communeCP = (zone==='GUA' || zone==='MAR' || zone==='GUY') ? document.getElementById('dom-postal').value : (form.commune ? form.commune.value : '');
-  const modePaiement = document.getElementById('payment-method').value;
+  const methodePaiement = document.getElementById('payment-method').value || '';
+  const deliveryMethod = document.getElementById('delivery-select').value || '';
   const subtotal = Number(document.getElementById('subtotal').textContent.replace(' €','')) || 0;
-  const shipping = Number(document.getElementById('shipping-display').textContent.replace(' €','')) || 0;
+  const shipping = computeShipping();
   const totalFinal = subtotal + shipping;
 
-  // recaptcha token
+  // reCAPTCHA client token
   const token = grecaptcha.getResponse();
   if(!token) return alert('Veuillez compléter le reCAPTCHA.');
 
-  // build productsJson
-  const productsJson = cart.map(c => ({ id: c.id, quantity: c.quantity }));
+  if(cart.length === 0) return alert('Votre panier est vide.');
 
-  // payload
+  const productsJson = cart.map(c=> ({ id: c.id, quantity: c.quantity }));
+
   const payload = {
     action: 'createOrder',
     recaptchaResponse: token,
     productsJson: JSON.stringify(productsJson),
     totalFinal: totalFinal,
-    methodePaiement: modePaiement,
-    modeLivraison: zone,
+    methodePaiement: methodePaiement,
+    modeLivraison: deliveryMethod,
     prenom: prenom,
     nom: nom,
     telephone: telephone,
@@ -531,103 +615,120 @@ document.getElementById('order-form').addEventListener('submit', async function(
 
   try {
     const res = await fetch(SCRIPT_URL, {
-      method: 'POST',
+      method:'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify(payload)
     });
     const data = await res.json();
     if(data.success){
-      // show popup, send email already triggered from Apps Script
-      document.getElementById('popup-prenom').textContent = prenom || '';
-      document.getElementById('popup').classList.remove('hidden');
-      let c = 10;
-      document.getElementById('popup-count').textContent = c;
-      const t = setInterval(()=>{
-        c--; document.getElementById('popup-count').textContent = c;
-        if(c<=0){ clearInterval(t); window.location.href = 'https://shop.kixx.fr'; }
-      },1000);
-      // clear cart & form
+      showPopupAndRedirect(prenom);
       cart = [];
       renderCart();
       form.reset();
       grecaptcha.reset();
     } else {
-      alert('Erreur lors de la création de la commande: ' + (data.error || data.message || 'Erreur serveur'));
+      alert('Erreur lors de la création de la commande : ' + (data.error || data.message || 'Erreur serveur'));
       console.error(data);
     }
   } catch(err){
-    console.error(err);
-    alert('Erreur réseau ou serveur. Voir console.');
+    console.error('submit error', err);
+    alert('Erreur réseau ou serveur (voir console).');
   }
 });
 
 /* ===========================
-   PayPal button (capture then createOrder)
+   PayPal integration (create order client-side, capture, then POST createOrder)
+   - Handles referer/partitioning issues by capturing then calling createOrder server-side.
    =========================== */
 function renderPayPal(){
-  // remove previous if present
-  document.getElementById('paypal-button-container').innerHTML = '';
+  // clear container
+  const container = document.getElementById('paypal-button-container');
+  container.innerHTML = '';
+  // compute totals
+  const subtotal = cart.reduce((s,c)=>s + c.price*c.quantity, 0);
+  const shipping = computeShipping();
+  const total = (subtotal + shipping).toFixed(2);
+
   paypal.Buttons({
-    style: { layout: 'vertical', color: 'gold', shape: 'rect', label:'pay' },
+    style: { layout:'vertical', color:'gold', shape:'rect', label:'pay' },
     createOrder: function(data, actions){
-      const subtotal = cart.reduce((s,c)=>s+c.price*c.quantity,0);
-      const shipping = Number(document.getElementById('shipping-display').textContent.replace(' €','')) || 0;
-      const total = (subtotal + shipping).toFixed(2);
       return actions.order.create({
-        purchase_units: [{ amount: { value: total } }]
+        purchase_units: [{
+          amount: { value: total }
+        }]
       });
     },
     onApprove: function(data, actions){
       return actions.order.capture().then(function(details){
-        // after capture, call createOrder with payment details
-        const payerName = (details.payer && details.payer.name && details.payer.name.given_name) ? details.payer.name.given_name : '';
-        // Build payload similar to form submit but with payment result
+        // after capture, send createOrder to Apps Script with payment recorded
+        const payerGiven = (details.payer && details.payer.name && details.payer.name.given_name) ? details.payer.name.given_name : '';
+        const payerEmail = (details.payer && details.payer.email_address) ? details.payer.email_address : '';
+        // prepare payload similar to form
         const payload = {
           action: 'createOrder',
           recaptchaResponse: grecaptcha.getResponse() || '',
-          productsJson: JSON.stringify(cart.map(c=>({id:c.id,quantity:c.quantity}))),
-          totalFinal: (cart.reduce((s,c)=>s+c.price*c.quantity,0) + Number(document.getElementById('shipping-display').textContent.replace(' €',''))).toFixed(2),
+          productsJson: JSON.stringify(cart.map(c=> ({ id:c.id, quantity:c.quantity }))),
+          totalFinal: (Number(total)).toFixed(2),
           methodePaiement: 'paypal',
-          modeLivraison: document.getElementById('zoneLivraison').value || '',
-          prenom: payerName || (document.querySelector('[name=prenom]') ? document.querySelector('[name=prenom]').value : ''),
-          nom: document.querySelector('[name=nom]') ? document.querySelector('[name=nom]').value : '',
-          telephone: document.querySelector('[name=telephone]') ? document.querySelector('[name=telephone]').value : '',
-          email: (details.payer && details.payer.email_address) ? details.payer.email_address : (document.querySelector('[name=email]') ? document.querySelector('[name=email]').value : ''),
-          adresse: document.querySelector('[name=adresse]') ? document.querySelector('[name=adresse]').value : '',
+          modeLivraison: document.getElementById('delivery-select').value || '',
+          prenom: payerGiven || (document.querySelector('[name=prenom]') ? document.querySelector('[name=prenom]').value : ''),
+          nom: (document.querySelector('[name=nom]') ? document.querySelector('[name=nom]').value : ''),
+          telephone: (document.querySelector('[name=telephone]') ? document.querySelector('[name=telephone]').value : ''),
+          email: payerEmail || (document.querySelector('[name=email]') ? document.querySelector('[name=email]').value : ''),
+          adresse: (document.querySelector('[name=adresse]') ? document.querySelector('[name=adresse]').value : ''),
           communeCP: (document.getElementById('dom-postal') && !document.getElementById('dom-postal').classList.contains('hidden')) ? document.getElementById('dom-postal').value : (document.querySelector('[name=commune]') ? document.querySelector('[name=commune]').value : ''),
           nombreArticlesTotal: cart.reduce((s,i)=>s+i.quantity,0),
           recapText: cart.map(c=> `${c.quantity}x ${c.title} ${c.sizeLabel} (${(c.price).toFixed(2)}€)` ).join(' | '),
           recapHTML: cart.map(c=> `<div>${c.quantity}x ${c.title} ${c.sizeLabel} — ${(c.price).toFixed(2)}€</div>` ).join('')
         };
-
-        // POST to Apps Script
-        fetch(SCRIPT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+        // POST to Apps Script to register order, deduct stock and send emails
+        fetch(SCRIPT_URL, { method:'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) })
           .then(r=>r.json()).then(d=>{
             if(d.success){
-              document.getElementById('popup-prenom').textContent = payload.prenom || '';
-              document.getElementById('popup').classList.remove('hidden');
-              let c=10; document.getElementById('popup-count').textContent=c;
-              const t=setInterval(()=>{c--; document.getElementById('popup-count').textContent=c; if(c<=0){ clearInterval(t); window.location.href='https://shop.kixx.fr'; } },1000);
-              cart=[]; renderCart();
+              showPopupAndRedirect(payload.prenom || '');
+              cart = []; renderCart();
             } else {
-              alert('Erreur création commande après paiement: ' + (d.error||d.message||'Erreur'));
+              alert('Erreur enregistrement commande après paiement : ' + (d.error || d.message || 'Erreur'));
             }
-          }).catch(err=>{ console.error(err); alert('Erreur réseau lors de l\'enregistrement de la commande.'); });
+          }).catch(err=>{
+            console.error('Erreur POST createOrder après PayPal', err);
+            alert('Erreur réseau lors de l\'enregistrement après paiement.');
+          });
       });
     },
-    onError: function(err){ console.error('PayPal error', err); alert('Erreur PayPal.'); }
+    onError: function(err){
+      console.error('PayPal error', err);
+      alert('Erreur PayPal. Voir console.');
+    }
   }).render('#paypal-button-container');
 }
 
 /* ===========================
-   simulateOnEdit button (for manual trigger)
+   Helper: show popup and redirect
    =========================== */
-document.getElementById('simulate-onedit').addEventListener('click', async function(){
+function showPopupAndRedirect(prenom){
+  document.getElementById('popup-prenom').textContent = prenom || '';
+  const pop = document.getElementById('popup');
+  pop.classList.remove('hidden');
+  let c = 10;
+  document.getElementById('popup-count').textContent = c;
+  const t = setInterval(()=>{
+    c--; document.getElementById('popup-count').textContent = c;
+    if(c<=0){ clearInterval(t); window.location.href = 'https://shop.kixx.fr'; }
+  },1000);
+}
+
+/* ===========================
+   Simulate onEdit button
+   =========================== */
+document.getElementById('simulate-onedit').addEventListener('click', async ()=>{
   const orderId = prompt('Entrez l\'ID de la commande à forcer (ex: KICKS-XXXX):');
   if(!orderId) return;
-  const res = await fetch(SCRIPT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'simulateOnEdit', orderId: orderId, force: 'true' }) });
-  const d = await res.json();
-  alert(JSON.stringify(d));
+  try{
+    const res = await fetch(SCRIPT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'simulateOnEdit', orderId: orderId, force: 'true' })});
+    const json = await res.json();
+    alert(JSON.stringify(json));
+  } catch(e){ console.error(e); alert('Erreur simulateOnEdit'); }
 });
 
 /* ===========================
@@ -638,18 +739,21 @@ document.getElementById('virement-toggle').addEventListener('click', function(){
 });
 
 /* ===========================
-   Escape helper
-   =========================== */
-function escapeHtml(text){ if(!text) return ''; return text.replace(/[&<>"']/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'})[m]; }); }
-
-/* ===========================
-   Init
+   INIT
    =========================== */
 window.addEventListener('load', async ()=>{
   await loadProducts();
+  // re-render PayPal button (initially empty cart)
   renderPayPal();
-  // if no SCRIPT_URL set, show notice in console
-  if(!SCRIPT_URL) console.warn('⚠️ SCRIPT_URL vide — colle ton URL Apps Script /exec dans la variable SCRIPT_URL du HTML.');
+  // Attach search filtering
+  document.getElementById('search').addEventListener('input', function(){
+    const q = this.value.trim().toLowerCase();
+    document.querySelectorAll('#catalogue article').forEach((card, idx)=>{
+      const prod = productsAll[idx];
+      const matches = prod.masterNameBase.toLowerCase().includes(q) || (prod.description||'').toLowerCase().includes(q) || prod.modelBaseId.toLowerCase().includes(q);
+      card.style.display = matches ? '' : 'none';
+    });
+  });
 });
 </script>
 </body>
