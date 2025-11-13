@@ -1,4 +1,3 @@
-<!-- PARTIE 1/3 - HEAD / STYLES / HEADER / BANNIÈRE / TOPBAR / CATALOGUE CONTAINER -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -6,13 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Kicks - Boutique</title>
 
-<!-- Tailwind (utilisé pour faciliter le style) -->
 <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 
-<!-- reCAPTCHA (client) -->
 <script src="https://www.google.com/recaptcha/api.js?hl=fr" async defer></script>
 
-<!-- PayPal SDK: REMPLACEZ ICI le client-id par le vôtre si nécessaire -->
 <script src="https://www.paypal.com/sdk/js?client-id=AXd7iZon2xRzhIauBjGdjwxQk237evP3BTtNfqIKpEaYDTOk9S733o-_GcPQIqhZ7bCalMG-M_PNaRHG&currency=EUR" data-sdk-integration-source="button-factory"></script>
 
 <style>
@@ -80,6 +76,10 @@
   .modal-card{ background:#fff; border-radius:10px; padding:12px; max-width:92%; max-height:92%; display:flex; flex-direction:column; align-items:center; gap:8px; }
   .modal-img{ max-width:100%; max-height:80vh; object-fit:contain; border-radius:8px; }
   .modal-controls{ display:flex; gap:12px; align-items:center; }
+  
+  /* Popup (ajouté pour correction) */
+  #popup{ position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:300; display:none; align-items:center; justify-content:center; }
+  #popup div{ background:#fff; padding:24px; border-radius:12px; text-align:center; }
 
   /* Pagination */
   .pagination{ display:flex; gap:6px; justify-content:center; margin:18px 0; flex-wrap:wrap; }
@@ -99,29 +99,23 @@
 </head>
 <body>
 
-<!-- ========== HEADER + BANNIERE ========== -->
 <header class="site-header">
   <div class="top-banner" id="banner" style="display:none;">
-    <!-- BANNER MODE: text OR image -- see JS toggles below -->
     <div class="max-container">
       <div id="banner-content" style="display:flex; align-items:center; justify-content:center;">
-        <!-- placeholder text (modifiable) -->
         <div id="banner-text" class="banner-text">Livraison gratuite dès 75 € — Offre limitée !</div>
-        <!-- if using image mode, JS will inject an <img id="banner-image"> here -->
-      </div>
+        </div>
     </div>
   </div>
 
   <div class="max-container header-inner" role="banner">
     <div class="logo-wrap" style="flex:1; text-align:left;">
-      <!-- LOGO: change src below if needed -->
       <img id="site-logo" src="https://i.ibb.co/GvN8CbtQ/logo.png" alt="Kicks - logo">
       <span class="site-name"></span>
     </div>
 
     <div style="flex:1; text-align:center;">
-      <!-- center area reserved (could be search on mobile) -->
-    </div>
+      </div>
 
     <div style="flex:1; text-align:right;">
       <a href="https://gdt.kixx.fr" target="_blank" class="muted">Guides des tailles</a>
@@ -129,9 +123,7 @@
   </div>
 </header>
 
-<!-- ========== MAIN ========== -->
 <main class="max-container" style="padding:18px 16px 80px;">
-  <!-- TOPBAR: Search + filters + totals -->
   <div class="topbar">
     <input id="search" class="search-input p-3 border rounded" type="search" placeholder="Rechercher produit, couleur, référence...">
     <select id="filter-size" class="filter-select p-3 border rounded">
@@ -144,20 +136,14 @@
     </div>
   </div>
 
-  <!-- CATALOGUE -->
   <section id="catalogue" aria-live="polite"></section>
 
-  <!-- PAGINATION -->
   <div id="pagination" class="pagination" aria-label="Pagination produits"></div>
-<!-- PARTIE 2/3 - CART FLOAT ICON / CART OVERLAY / MODAL / ORDER FORM / FOOTER -->
-
-  <!-- CART FLOAT ICON -->
   <div class="cart-float" id="cart-float" title="Voir le panier">
     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M3 3h2l.4 2M7 13h10l4-8H5.4" stroke="#fff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <div class="cart-count" id="cart-count">0</div>
   </div>
 
-  <!-- CART OVERLAY (slide from right) -->
   <aside id="cart-overlay" class="cart-overlay" aria-hidden="true">
     <button class="close-btn" id="close-cart" aria-label="Fermer le panier">✕</button>
     <h3 class="text-xl font-bold">Votre panier</h3>
@@ -181,7 +167,6 @@
       </div>
     </div>
 
-    <!-- quick form inside cart overlay to fill at the fly -->
     <form id="quick-form" style="margin-top:12px; display:grid; gap:8px;">
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
         <input name="prenom" placeholder="Prénom" required class="p-2 border rounded" />
@@ -223,7 +208,6 @@
     </form>
   </aside>
 
-  <!-- IMAGE MODAL -->
   <div id="img-modal" class="modal-backdrop" style="display:none;">
     <div class="modal-card">
       <img id="modal-img" class="modal-img" src="" alt="image zoom">
@@ -234,14 +218,119 @@
       </div>
     </div>
   </div>
+  
+  <div id="popup" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:300; align-items:center; justify-content:center;">
+    <div style="background:#fff; padding:24px; border-radius:12px; text-align:center;">
+      <h2 class="text-xl font-bold">Merci <span id="popup-prenom"></span>!</h2>
+      <p>Votre commande est confirmée.</p>
+      <p class="muted">Redirection dans <span id="popup-count">10</span>s...</p>
+    </div>
+  </div>
 
-  <!-- FOOTER -->
+
   <footer style="margin-top:28px; padding:18px; text-align:center; color:#fff; background:var(--anthracite); border-radius:8px;">
     <a href="https://shop.kixx.fr/page/conditions-generales" target="_blank" style="color:#fff; text-decoration:underline;">Conditions générales</a>
     <div style="margin-top:8px; font-size:13px;">© 2025 Kicks</div>
   </footer>
 </main>
-<!-- PARTIE 3/3 - SCRIPTS : LOAD, RENDER, PAGINATION, CART, PAYPAL, SUBMIT, NOTES -->
+<div class="cart-float" id="cart-float" title="Voir le panier">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M3 3h2l.4 2M7 13h10l4-8H5.4" stroke="#fff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <div class="cart-count" id="cart-count">0</div>
+  </div>
+
+  <aside id="cart-overlay" class="cart-overlay" aria-hidden="true">
+    <button class="close-btn" id="close-cart" aria-label="Fermer le panier">✕</button>
+    <h3 class="text-xl font-bold">Votre panier</h3>
+    
+    <div id="scroll-area" style="overflow-y: auto; flex: 1; padding-right: 8px;">
+
+      <div id="cart-items" style="margin-top:8px;"></div>
+  
+      <div style="margin-top:10px;">
+        <div class="flex justify-between"><div class="muted">Sous-total</div><div id="cart-subtotal">0.00 €</div></div>
+        <div class="flex justify-between mt-2"><div class="muted">Livraison</div><div id="cart-shipping">0.00 €</div></div>
+        <hr class="my-3">
+        <div class="flex justify-between"><div class="text-lg font-bold">Total</div><div id="cart-total" class="text-lg font-bold">0.00 €</div></div>
+        <div class="muted mt-2">Non assujetti à la TVA</div>
+      </div>
+  
+      <div style="margin-top:12px;">
+        <div id="paypal-button-overlay"></div>
+        <button id="virement-button" class="mt-2 w-full py-2 rounded" style="background:var(--anthracite); color:#fff;">Payer par virement</button>
+        <div id="virement-info" class="mt-2 p-3 border rounded hidden">
+          <strong>Banque :</strong> SumUp Limited<br>
+          <strong>IBAN :</strong> IE85SUMU99036512267268<br>
+          <strong>Titulaire :</strong> R.Laskari / Kicks
+        </div>
+      </div>
+  
+      <form id="quick-form" style="margin-top:12px; display:grid; gap:8px;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <input name="prenom" placeholder="Prénom" required class="p-2 border rounded" />
+          <input name="nom" placeholder="Nom" required class="p-2 border rounded" />
+        </div>
+        <input name="telephone" placeholder="Téléphone" required class="p-2 border rounded" />
+        <input name="email" type="email" placeholder="Email" required class="p-2 border rounded" />
+        <input name="adresse" placeholder="Adresse" required class="p-2 border rounded" />
+        <label class="muted">Zone livraison</label>
+        <select id="zoneLivraison" required class="p-2 border rounded">
+          <option value="">-- Choisir la zone --</option>
+          <option value="GUA">Guadeloupe</option>
+          <option value="MAR">Martinique</option>
+          <option value="GUY">Guyane</option>
+          <option value="FR">France métropolitaine</option>
+          <option value="COR">Corse / Monaco / Andorre</option>
+        </select>
+  
+        <div id="dom-postal-container" class="hidden">
+          <select id="dom-postal" class="p-2 border rounded"></select>
+        </div>
+        <div id="city-container" class="hidden">
+          <input name="commune" placeholder="Commune" class="p-2 border rounded" />
+        </div>
+  
+        <label class="muted">Mode de paiement</label>
+        <select id="payment-method" name="modePaiement" required class="p-2 border rounded">
+          <option value="">-- Choisir --</option>
+          <option value="paypal">PayPal</option>
+          <option value="virement">Virement</option>
+        </select>
+  
+        <div class="g-recaptcha" data-sitekey="6LcBZwosAAAAAG8xMR5po1FuipWeEo-_mJlROYFN"></div>
+  
+        <div style="display:flex; gap:8px; margin-bottom: 20px;"> <button type="button" id="btn-submit-quick" class="p-2 rounded" style="background:var(--orange); color:#fff; flex:1;">Valider la commande</button>
+          <button type="button" id="btn-clear-cart" class="p-2 rounded border" style="flex:1;">Vider</button>
+        </div>
+      </form>
+
+    </div>
+    </aside>
+
+  <div id="img-modal" class="modal-backdrop" style="display:none;">
+    <div class="modal-card">
+      <img id="modal-img" class="modal-img" src="" alt="image zoom">
+      <div class="modal-controls">
+        <button id="modal-prev" class="p-2 border rounded">←</button>
+        <button id="modal-next" class="p-2 border rounded">→</button>
+        <button id="modal-close" class="p-2 border rounded">Fermer</button>
+      </div>
+    </div>
+  </div>
+  
+  <div id="popup" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:300; align-items:center; justify-content:center;">
+    <div style="background:#fff; padding:24px; border-radius:12px; text-align:center;">
+      <h2 class="text-xl font-bold">Merci <span id="popup-prenom"></span>!</h2>
+      <p>Votre commande est confirmée.</p>
+      <p class="muted">Redirection dans <span id="popup-count">10</span>s...</p>
+    </div>
+  </div>
+
+
+  <footer style="margin-top:28px; padding:18px; text-align:center; color:#fff; background:var(--anthracite); border-radius:8px;">
+    <a href="https://shop.kixx.fr/page/conditions-generales" target="_blank" style="color:#fff; text-decoration:underline;">Conditions générales</a>
+    <div style="margin-top:8px; font-size:13px;">© 2025 Kicks</div>
+  </footer>
+</main>
 <script>
 /* ===========================
   CONFIG - REMPLACE ICI
@@ -736,17 +825,8 @@ document.getElementById('btn-clear-cart').addEventListener('click', ()=>{
   if(confirm('Vider le panier ?')){ cart=[]; updateCartDisplays(); }
 });
 
-/* --------------------------
-   SIMULATE onEdit trigger (manual) - calls Apps Script simulateOnEdit
-   -------------------------- */
-document.getElementById('simulate-onedit').addEventListener('click', async ()=>{
-  const id = prompt('Entrez ID commande pour forcer onEdit (ex: KICKS-XXXX):');
-  if(!id) return;
-  try{
-    const res = await fetch(SCRIPT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'simulateOnEdit', orderId: id, force: 'true' }) });
-    const d = await res.json(); alert(JSON.stringify(d));
-  } catch(e){ console.error(e); alert('Erreur simulateOnEdit'); }
-});
+/* BLOC 'simulate-onedit' SUPPRIMÉ - C'EST LUI QUI CAUSAIT L'ERREUR
+*/
 
 /* --------------------------
    SEARCH field: global search in client-side list and paginate to page 1
@@ -774,6 +854,3 @@ window.addEventListener('load', async ()=>{
 </script>
 </body>
 </html>
-
-
-
