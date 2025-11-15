@@ -147,8 +147,9 @@
                 <input type="text" id="adresse-complement" placeholder="Complément d'adresse (Optionnel)" class="w-full p-2 border rounded-md mt-2">
                 <select id="shipping-zone" class="w-full p-2 border rounded-md mt-2" required>
                     <option value="" disabled selected>Sélectionnez votre zone de livraison</option>
-                    <option value="Guadeloupe">Guadeloupe</option>
-                    <option value="Antilles">Martinique, Guyane, St-Barth, St-Martin</option>
+                    <option value="Guadeloupe_Express">Guadeloupe (Express - Abymes, Abymes 2,Morne a l'eau, Gosier, Baie-Mahault...)</option>
+                    <option value="Guadeloupe_Standard">Guadeloupe (Standard - Reste de l'île)</option>
+					<option value="Antilles">Martinique, Guyane, St-Barth, St-Martin</option>
                     <option value="FranceMetropolitaine">France Métropolitaine, Corse, Monaco, Andorre</option>
                 </select>
                 
@@ -243,7 +244,7 @@
 // =========================================================================================
 
 // !!! ATTENTION : Assurez-vous que cette URL est la bonne URL de DÉPLOIEMENT (pas 'dev') de votre Apps Script !!!
-const API_URL = 'https://script.google.com/macros/s/AKfycbxPWgXGaR1YUbznCT4fEr1coqDtmtyMVUdlKGlEEpBXo7JhDsJpiFbrFZkfPcl1of9U_w/exec'; 
+const API_URL = 'https://script.google.com/macros/s/AKfycbwC51Hk28_lO-lyR2gt9naOFa3OQ8b8Wr4WMEXU4gJDvT64R_3tqaLSf4K4QWkTqU2JHg/exec'; 
 
 let products = [];
 let cart = JSON.parse(localStorage.getItem('kicks_cart') || '[]');
@@ -518,8 +519,10 @@ const fetchProducts = async () => {
         const response = await fetch(`${API_URL}?action=getProduits`);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const data = await response.json();
-        if (data.success && data.products) {
-            renderProducts(data.products);
+        
+        // MODIFICATION: 'products' au lieu de 'produits' pour matcher le script
+        if (data.success && data.produits) { // 'produits' est la clé renvoyée par le script
+            renderProducts(data.produits); // 'produits' au lieu de 'products'
         } else {
             document.getElementById('loading-message').textContent = 'Erreur: ' + (data.error || 'Impossible de charger les produits.');
         }
@@ -533,6 +536,7 @@ const postCreateOrder = async (payload) => {
     if (API_URL.includes('VOTRE_URL')) {
         throw new Error('API_URL non configurée.');
     }
+    // MODIFICATION: L'action est passée en paramètre d'URL pour que doPost la lise
     const response = await fetch(`${API_URL}?action=createOrder`, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' }, 
@@ -545,6 +549,7 @@ const postNewsletterSignup = async (email) => {
     if (API_URL.includes('VOTRE_URL')) {
         throw new Error('API_URL non configurée.');
     }
+    // MODIFICATION: L'action est passée en paramètre d'URL pour que doPost la lise
     const response = await fetch(`${API_URL}?action=addNewsletter`, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
@@ -572,6 +577,7 @@ const handleSumUpCheckout = async () => {
     try {
         const payload = buildCreateOrderPayload('sumup', selectedShippingRate.rateId);
         
+        // MODIFICATION: Action dans l'URL
         const apiResponse = await fetch(`${API_URL}?action=createSumUpCheckout`, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
@@ -585,7 +591,7 @@ const handleSumUpCheckout = async () => {
             return;
         }
 
-        const { checkoutId, checkoutUrl } = data;
+        const { checkoutId, checkoutUrl } = data; // 'checkoutUrl' au lieu de 'redirectUrl' pour le SDK
 
         // S'assurer que le SDK SumUp est chargé
         if (typeof SumUp === 'undefined' || !SumUp.checkout) {
@@ -595,7 +601,7 @@ const handleSumUpCheckout = async () => {
 
         const checkout = new SumUp.checkout({
             checkoutId: checkoutId,
-            checkoutUrl: checkoutUrl,
+            checkoutUrl: checkoutUrl, // Utilisation de checkoutUrl
             onResponse: async (type, body) => {
                 if (type === 'success') {
                     const confirmationPayload = {
@@ -632,23 +638,56 @@ const handleSumUpCheckout = async () => {
 // --- Logique des Frais de Livraison ---
 let shippingRates = {}; 
 
+// ### MODIFICATION MAJEURE (Correction de l'incohérence de structure) ###
 const fetchShippingRates = async () => {
     try {
         const response = await fetch(`${API_URL}?action=getShippingRates`);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        
         const data = await response.json();
+        
         if (data.success && data.rates) {
-            shippingRates = data.rates;
+            // Le script renvoie un TABLEAU PLAT.
+            // Le code HTML attend un OBJET GROUPÉ PAR ZONE.
+            // Nous devons transformer les données ici.
+            
+            const groupedRates = data.rates.reduce((acc, rate) => {
+                // 'rate' ressemble à: { zone: 'Guadeloupe', mode: 'La_Poste', cost: 5, min: 0, max: 100 }
+                
+                const zone = rate.zone;
+                if (!acc[zone]) {
+                    acc[zone] = [];
+                }
+                
+                // Transformer le 'rate' du script en format attendu par le HTML
+                acc[zone].push({
+                    rateId: `${rate.zone}_${rate.mode}`, // Créer un ID unique (ex: Guadeloupe_La_Poste)
+                    method: rate.mode.replace(/_/g, ' '), // "La_Poste" -> "La Poste"
+                    details: rate.mode.replace(/_/g, ' '), // "La_Poste" -> "La Poste" (ou utiliser une autre colonne si dispo)
+                    cost: rate.cost,
+                    minAmount: rate.min, // 'min' devient 'minAmount'
+                    maxAmount: rate.max  // 'max' devient 'maxAmount'
+                });
+                return acc;
+            }, {});
+            
+            // Le format est maintenant: { Guadeloupe: [ ... ], Antilles: [ ... ] }
+            shippingRates = groupedRates;
+            
         } else {
             console.error('Erreur: Impossible de charger les tarifs de livraison.', data.error);
+            throw new Error(data.error || 'Erreur chargement tarifs');
         }
     } catch (e) {
         console.error('Erreur réseau lors du chargement des tarifs de livraison:', e);
         throw e; // Renvoyer l'erreur pour que init() puisse la gérer
     }
 };
+// ### FIN DE LA MODIFICATION MAJEURE ###
+
 
 const getApplicableRates = (zone) => {
+    // 'shippingRates' est maintenant un objet, donc shippingRates[zone] fonctionne.
     return shippingRates[zone] || [];
 };
 
@@ -666,10 +705,19 @@ const calculateAndDisplayShipping = (zone, forceUpdate = false) => {
     }
 
     let rates = getApplicableRates(zone);
-    let applicableRates = rates.filter(rate => subtotal <= rate.maxAmount);
+    
+    // MODIFICATION: 'maxAmount' au lieu de 'maxTotal' (basé sur notre transformation)
+    let applicableRates = rates.filter(rate => subtotal >= rate.minAmount && subtotal <= rate.maxAmount);
 
     if (applicableRates.length === 0) {
-        shippingOptionsEl.innerHTML = `<p class="text-red-500 font-semibold">Le montant de votre commande (${formatPrice(subtotal)}) est supérieur à la tranche maximale gérée pour ${zone}. Veuillez nous contacter.</p>`;
+        // Gérer le cas où aucun tarif n'est trouvé (ex: trop lourd)
+        let higherRates = rates.filter(rate => subtotal > rate.maxAmount);
+        if (higherRates.length > 0) {
+             shippingOptionsEl.innerHTML = `<p class="text-red-500 font-semibold">Le montant de votre commande (${formatPrice(subtotal)}) est supérieur à la tranche maximale gérée pour ${zone}. Veuillez nous contacter.</p>`;
+        } else {
+             shippingOptionsEl.innerHTML = `<p class="text-red-500 font-semibold">Aucun mode de livraison disponible pour cette zone ou ce montant.</p>`;
+        }
+
         shippingOptionsContainer.classList.remove('hidden');
         shippingCost = 0;
         selectedShippingRate = null;
@@ -727,8 +775,8 @@ const updateShippingSelection = (radioElement) => {
     selectedShippingRate = {
         rateId: radioElement.value,
         cost: shippingCost,
-        method: radioElement.dataset.name,
-        details: fullMethodText
+        method: radioElement.dataset.name, // "La Poste"
+        details: fullMethodText // "La Poste (La Poste)"
     };
     
     document.getElementById('shipping-method-name').textContent = selectedShippingRate.method;
@@ -744,6 +792,7 @@ const updateShippingSelection = (radioElement) => {
 
 /**
  * Construit l'objet payload pour la création de commande
+ * ### MODIFICATION MAJEURE (Noms des champs) ###
  */
 const buildCreateOrderPayload = (paymentMethod, shippingRateId) => {
     const prenom = document.getElementById('prenom').value.trim();
@@ -762,37 +811,39 @@ const buildCreateOrderPayload = (paymentMethod, shippingRateId) => {
     let finalShippingMethod = "Non spécifié";
 
     if (shippingRateId && selectedShippingRate && selectedShippingRate.rateId === shippingRateId) {
-        finalShippingCost = selectedShippingRate.cost; // C'est déjà un float
-        finalShippingMethod = selectedShippingRate.details;
+        finalShippingCost = selectedShippingRate.cost;
+        // MODIFICATION: Envoyer le 'method' simple (ex: "La Poste") au lieu du 'details'
+        finalShippingMethod = selectedShippingRate.method; 
     } else {
         throw new Error("Sélection de livraison manquante ou invalide."); 
     }
     
-    const subtotal = getCartSubtotal(); // C'est déjà un float propre (arrondi)
-    
-    // ============================================================================
-    // ### CORRECTION MAJEURE (FIABILISATION) ###
-    // S'assurer que le total final est un nombre à 2 décimales pour les API
-    // C'est crucial pour SumUp qui reçoit le payload.
-    // ============================================================================
+    const subtotal = getCartSubtotal();
     const finalTotal = parseFloat((subtotal + finalShippingCost).toFixed(2));
 
+    // MODIFICATION: Alignement des noms de clés avec ce que le script (handleCreateOrder) attend.
     const payload = {
         prenom, nom, telephone, email,
-        commune, cp, adresse, adresseComplement, shippingZone,
-        cart: cart.map(item => ({
+        commune, cp, adresse, adresseComplement,
+        
+        zoneLivraison: shippingZone, // AU LIEU DE 'shippingZone'
+        
+        // AU LIEU DE 'cart: cart.map(...)'
+        productsJson: JSON.stringify(cart.map(item => ({
             id: item.id,
             masterName: item.masterName,
             size: item.size,
             price: item.price,
             quantity: item.quantity,
             stock: item.stock
-        })),
-        totalFinal: finalTotal, // Utilisation du total fiabilisé
+        }))),
+        
+        totalFinal: finalTotal,
         fraisLivraison: finalShippingCost,
         methodePaiement: paymentMethod,
-        modeLivraison: finalShippingMethod,
-        recaptchaToken: grecaptcha.getResponse()
+        modeLivraison: finalShippingMethod, // C'est maintenant 'La Poste' (nom simple)
+        
+        recaptchaResponse: grecaptcha.getResponse() // AU LIEU DE 'recaptchaToken'
     };
     
     return payload;
@@ -898,20 +949,20 @@ const renderPayPalButtons = () => {
                     
                     // Construire le payload. Il contient déjà le total fiabilisé.
                     const payload = buildCreateOrderPayload('paypal', selectedShippingRate.rateId);
-                    
-                    // Le code de création de commande PayPal semble correct.
-                    // Il utilise toFixed(2) partout, ce qui est bien.
+                    const subtotal = (payload.totalFinal - payload.fraisLivraison).toFixed(2);
+                    const shipping = payload.fraisLivraison.toFixed(2);
+
                     return actions.order.create({
                         purchase_units: [{
                             amount: {
                                 value: payload.totalFinal.toFixed(2), // Total (fiabilisé)
                                 currency_code: 'EUR',
                                 breakdown: {
-                                    item_total: { currency_code: 'EUR', value: (payload.totalFinal - payload.fraisLivraison).toFixed(2) }, // Sous-total
-                                    shipping: { currency_code: 'EUR', value: payload.fraisLivraison.toFixed(2) } // Livraison
+                                    item_total: { currency_code: 'EUR', value: subtotal }, // Sous-total
+                                    shipping: { currency_code: 'EUR', value: shipping } // Livraison
                                 }
                             },
-                            items: payload.cart.map(item => ({
+                            items: cart.map(item => ({ // Utilisation de 'cart' (local)
                                 name: `${item.masterName} T. ${item.size}`,
                                 quantity: item.quantity,
                                 unit_amount: { currency_code: 'EUR', value: item.price.toFixed(2) }
@@ -1065,13 +1116,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('sumup-btn').addEventListener('click', handleSumUpCheckout);
 
     // Virement Info Toggle
-    // La logique ici est correcte : on vérifie l'état AVANT de le changer.
     document.getElementById('virement-button').addEventListener('click', ()=>{ 
         const infoEl = document.getElementById('virement-info');
         const isHidden = infoEl.classList.contains('hidden');
         infoEl.classList.toggle('hidden');
-        // Si c'était caché (isHidden = true), on affiche "Masquer" (car maintenant c'est visible)
-        // Si c'était visible (isHidden = false), on affiche "Afficher" (car maintenant c'est caché)
         document.getElementById('virement-button').textContent = isHidden ? 'Masquer les infos' : 'Afficher les infos';
     });
 
