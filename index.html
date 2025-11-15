@@ -8,7 +8,6 @@
 <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 <script src="https://www.google.com/recaptcha/api.js?hl=fr" async defer></script>
 <script src="https://www.paypal.com/sdk/js?client-id=AXd7iZon2xRzhIauBjGdjwxQk237evP3BTtNfqIKpEaYDTOk9S733o-_GcPQIqhZ7bCalMG-M_PNaRHG&currency=EUR" data-sdk-integration-source="button-factory"></script>
-
 <script type="text/javascript" src="https://gateway.sumup.com/gateway/ecom/card/v2/sdk.js"></script>
 
 <style>
@@ -115,8 +114,8 @@
             <span id="cart-total">0,00 €</span>
         </div>
     </div>
-
-    <button id="btn-clear-cart-default" class="w-full mt-4 text-sm text-red-500 hover:text-red-700 transition">Vider le panier</button>
+    
+    <button type="button" id="btn-clear-cart-default" class="w-full mt-4 text-sm text-red-500 hover:text-red-700 transition">Vider le panier</button>
 
     <button id="checkout-button" class="btn-primary w-full py-3 mt-4 rounded-lg font-semibold hover:bg-opacity-90 transition">
         Passer la commande
@@ -169,7 +168,8 @@
                 </select>
                 
                 <div id="payment-area" class="mt-4 space-y-3">
-                    <div id="paypal-button-container" class="hidden"></div>
+                    <div id="paypal-button-container" class="hidden">
+                        </div>
                     
                     <button type="button" id="sumup-btn" class="btn-primary w-full py-3 rounded-lg font-semibold hover:bg-opacity-90 transition">
                         Payer <span id="sumup-total">0,00 €</span> par Carte
@@ -180,13 +180,15 @@
                         <p class="text-sm">Veuillez effectuer un virement du montant total à l'ordre de **E.I.RL Kicks**.</p>
                         <p class="text-sm">IBAN: **IE85SUMU99513337985429**</p>
                         <p class="text-xs mt-1">Votre commande sera validée après réception du virement. Votre ID de commande vous sera fourni à l'étape suivante.</p>
-                        <button type="button" id="virement-button" class="mt-2 text-primary font-semibold text-sm">Masquer/Afficher les infos</button>
+                        <button type="button" id="virement-button" class="mt-2 text-primary font-semibold text-sm">Masquer les infos</button>
                     </div>
                 </div>
             </div>
 
             <div class="g-recaptcha flex justify-center" data-sitekey="6LcBZwosAAAAAG8xMR5po1FuipWeEo-_mJlROYFN"></div>
-
+            
+            <button type="button" id="btn-clear-cart-form" class="w-full mt-2 text-sm text-red-500 hover:text-red-700 transition">Vider le panier et revenir</button>
+            
             <button type="button" id="btn-submit-quick" class="btn-primary w-full py-3 rounded-lg font-semibold transition hidden">
                 Confirmer la commande par Virement
             </button>
@@ -240,35 +242,45 @@
 // PARTIE 4 : JAVASCRIPT - CONFIGURATION ET FONCTIONS UTILITAIRES
 // =========================================================================================
 
-// !!! ATTENTION : REMPLACER CETTE VALEUR PAR L'URL DE DÉPLOIEMENT DE VOTRE APPS SCRIPT !!!
-const API_URL = 'https://script.google.com/macros/s/AKfycbxPWgXGaR1YUbznCT4fEr1coqDtmtyMVUdlKGlEEpBXo7JhDsJpiFbrFZkfPcl1of9U_w/exec'; // Ex: https://script.google.com/macros/s/AKfyc.../exec
+// !!! ATTENTION : Assurez-vous que cette URL est la bonne URL de DÉPLOIEMENT (pas 'dev') de votre Apps Script !!!
+const API_URL = 'https://script.google.com/macros/s/AKfycbxPWgXGaR1YUbznCT4fEr1coqDtmtyMVUdlKGlEEpBXo7JhDsJpiFbrFZkfPcl1of9U_w/exec'; 
 
 let products = [];
 let cart = JSON.parse(localStorage.getItem('kicks_cart') || '[]');
-let totalCart = 0;
+let totalCart = 0; // Total avec frais de port
 let shippingCost = 0;
 let selectedShippingRate = null;
 
 const formatPrice = (price) => {
-    return price.toFixed(2).replace('.', ',') + ' €';
+    return Number(price || 0).toFixed(2).replace('.', ',') + ' €';
 };
 
-const getCartTotal = () => {
-    let subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    totalCart = subtotal + shippingCost;
-    return subtotal;
+const getCartSubtotal = () => {
+    // Les calculs financiers doivent être robustes.
+    // On utilise toFixed(2) et parseFloat pour éviter les erreurs d'arrondi
+    // ex: 0.1 + 0.2 = 0.30000000000000004
+    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    return parseFloat(subtotal.toFixed(2));
 };
 
-const updateCartDisplays = () => {
-    const subtotal = getCartTotal();
+const updateCartDisplays = (shouldUpdateShipping = false) => {
+    const subtotal = getCartSubtotal();
     
+    if (shouldUpdateShipping) {
+        const currentZone = document.getElementById('shipping-zone').value;
+        if (currentZone) {
+            calculateAndDisplayShipping(currentZone, true);
+        }
+    }
+    
+    // Le total est la somme du sous-total (déjà un float propre) et des frais de port (float)
+    totalCart = parseFloat((subtotal + shippingCost).toFixed(2));
+
     document.getElementById('cart-count').textContent = cart.length;
     document.getElementById('cart-subtotal').textContent = formatPrice(subtotal);
-    
     document.getElementById('cart-total').textContent = formatPrice(totalCart);
     document.getElementById('sumup-total').textContent = formatPrice(totalCart);
     
-    // Affichage des articles dans le panier
     const cartItemsEl = document.getElementById('cart-items');
     cartItemsEl.innerHTML = '';
 
@@ -276,9 +288,16 @@ const updateCartDisplays = () => {
         document.getElementById('empty-cart-message').style.display = 'block';
         document.getElementById('checkout-button').disabled = true;
         document.getElementById('shipping-display').classList.add('hidden');
-        shippingCost = 0; // Réinitialiser si le panier est vide
+        shippingCost = 0;
         selectedShippingRate = null;
-        updateCartDisplays(); // Mise à jour pour s'assurer que le total est à 0
+        totalCart = 0;
+        
+        document.getElementById('cart-total').textContent = formatPrice(0);
+        document.getElementById('cart-subtotal').textContent = formatPrice(0);
+        document.getElementById('sumup-total').textContent = formatPrice(0);
+        document.getElementById('shipping-options-container').classList.add('hidden');
+        
+        localStorage.setItem('kicks_cart', '[]'); 
         return;
     } else {
         document.getElementById('empty-cart-message').style.display = 'none';
@@ -300,7 +319,6 @@ const updateCartDisplays = () => {
         `;
     });
 
-    // Sauvegarde du panier
     localStorage.setItem('kicks_cart', JSON.stringify(cart));
 };
 
@@ -308,8 +326,12 @@ const findProduct = (id) => {
     return products.find(p => p.id === id);
 };
 
-const addToCart = (id, size) => {
-    const fullId = `${id}_${size}`;
+const findProductMaster = (idPrefix) => {
+    return products.find(p => p.id.split('_')[0] === idPrefix);
+};
+
+const addToCart = (idPrefix, size) => {
+    const fullId = `${idPrefix}_${size}`;
     const productData = findProduct(fullId);
 
     if (!productData) {
@@ -335,11 +357,11 @@ const addToCart = (id, size) => {
             price: productData.price,
             imageUrls: productData.imageUrls,
             quantity: 1,
-            stock: productData.stock // Pour vérification rapide
+            stock: productData.stock 
         });
     }
 
-    updateCartDisplays();
+    updateCartDisplays(true);
     alert(`Ajouté au panier: ${productData.masterName} - T. ${productData.size}`);
     document.getElementById('cart-drawer').classList.remove('cart-closed');
     document.getElementById('cart-drawer').classList.add('cart-open');
@@ -352,9 +374,7 @@ const removeFromCart = (fullId, confirmRemoval = false) => {
             return;
         }
         cart.splice(itemIndex, 1);
-        // Après suppression, les frais de port doivent être recalculés
-        calculateAndDisplayShipping(document.getElementById('shipping-zone').value, true); 
-        updateCartDisplays();
+        updateCartDisplays(true);
     }
 };
 
@@ -363,32 +383,40 @@ const showConfirmationAndClear = (prenom) => {
     cart = [];
     shippingCost = 0;
     selectedShippingRate = null;
-    updateCartDisplays();
+    updateCartDisplays(true);
     document.getElementById('checkout-overlay').classList.add('hidden');
     document.getElementById('cart-drawer').classList.remove('cart-open');
     document.getElementById('cart-drawer').classList.add('cart-closed');
-    // Réinitialiser le formulaire et le reCAPTCHA
+    
     document.getElementById('checkout-form').reset();
+    document.getElementById('shipping-zone').value = '';
+    document.getElementById('shipping-options-container').classList.add('hidden');
+    handlePaymentMethodChange();
+    
     if (typeof grecaptcha !== 'undefined' && grecaptcha.reset) {
         grecaptcha.reset();
     }
 };
+
 // =========================================================================================
 // PARTIE 5 : JAVASCRIPT - RENDU PRODUITS ET MODALS
 // =========================================================================================
 
 const renderProduct = (p) => {
-    const availableSizes = products
-        .filter(item => item.masterName === p.masterName)
+    const masterProducts = products.filter(item => item.masterName === p.masterName);
+
+    const availableSizes = masterProducts
         .sort((a, b) => parseInt(a.size) - parseInt(b.size))
         .map(item => ({
             size: item.size,
             stock: item.stock,
             fullId: item.id
         }))
-        .filter(item => item.stock > 0); // On affiche seulement les tailles en stock
+        .filter(item => item.stock > 0);
 
-    if (availableSizes.length === 0) return ''; // Ne rien afficher si toutes les tailles sont en rupture
+    if (availableSizes.length === 0) return '';
+
+    const masterIdPrefix = p.id.split('_')[0]; 
 
     const cardHtml = `
         <div class="bg-white rounded-xl shadow-lg overflow-hidden flex flex-col hover:shadow-xl transition duration-300">
@@ -410,7 +438,7 @@ const renderProduct = (p) => {
                 <div class="flex flex-wrap gap-2 mb-4">
                     ${availableSizes.map(s => `
                         <button 
-                            onclick="addToCart('${p.id.split('_')[0]}', '${s.size}')"
+                            onclick="addToCart('${masterIdPrefix}', '${s.size}')" 
                             class="bg-gray-100 text-anthracite hover:bg-orange hover:text-white transition duration-200 text-sm font-medium py-1 px-3 rounded-full"
                         >
                             T. ${s.size}
@@ -428,7 +456,6 @@ const renderProducts = (data) => {
     const listEl = document.getElementById('product-list');
     listEl.innerHTML = '';
     
-    // Filtrer pour obtenir une seule entrée par MasterName pour l'affichage de la carte
     const uniqueProducts = [];
     const masterNames = new Set();
 
@@ -454,7 +481,7 @@ const renderProducts = (data) => {
 let currentModal = { imgIndex: 0, productMasterName: null, productData: null };
 
 const openImageModal = (masterName) => {
-    const productData = products.find(p => p.masterName === masterName);
+    const productData = products.find(p => p.masterName === masterName); 
     if (!productData || productData.imageUrls.length === 0) return;
 
     currentModal.imgIndex = 0;
@@ -480,14 +507,16 @@ const changeImage = (direction) => {
     currentModal.imgIndex = newIndex;
     document.getElementById('modal-image').src = p.imageUrls[newIndex];
 };
+
 // =========================================================================================
-// PARTIE 6 : JAVASCRIPT - RÉSEAU, PAIEMENT SUMUP ET FRAIS DE LIVRAISON (CORRIGÉ)
+// PARTIE 6 : JAVASCRIPT - RÉSEAU, PAIEMENT SUMUP ET FRAIS DE LIVRAISON
 // =========================================================================================
 
 // --- Fonctions de Requête ---
 const fetchProducts = async () => {
     try {
         const response = await fetch(`${API_URL}?action=getProduits`);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const data = await response.json();
         if (data.success && data.products) {
             renderProducts(data.products);
@@ -501,19 +530,19 @@ const fetchProducts = async () => {
 };
 
 const postCreateOrder = async (payload) => {
-    if (API_URL === 'VOTRE_URL_APPS_SCRIPT_ICI') {
+    if (API_URL.includes('VOTRE_URL')) {
         throw new Error('API_URL non configurée.');
     }
     const response = await fetch(`${API_URL}?action=createOrder`, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain' }, // Utiliser text/plain pour Apps Script
+        headers: { 'Content-Type': 'text/plain' }, 
         body: JSON.stringify(payload)
     });
     return response.json();
 };
 
 const postNewsletterSignup = async (email) => {
-    if (API_URL === 'VOTRE_URL_APPS_SCRIPT_ICI') {
+    if (API_URL.includes('VOTRE_URL')) {
         throw new Error('API_URL non configurée.');
     }
     const response = await fetch(`${API_URL}?action=addNewsletter`, {
@@ -524,15 +553,10 @@ const postNewsletterSignup = async (email) => {
     return response.json();
 };
 
-// --- Logique de Paiement SumUp (CORRIGÉE) ---
-
-/**
- * Gère l'initialisation du paiement SumUp
- */
+// --- Logique de Paiement SumUp ---
 const handleSumUpCheckout = async () => {
     if (cart.length === 0) return alert('Votre panier est vide.');
     
-    // 1. Validation du formulaire et reCAPTCHA
     if (!document.getElementById('checkout-form').checkValidity()) {
         alert("Veuillez remplir tous les champs obligatoires du formulaire de livraison.");
         document.getElementById('checkout-form').reportValidity();
@@ -545,11 +569,9 @@ const handleSumUpCheckout = async () => {
     const token = grecaptcha.getResponse();
     if (!token) return alert('Veuillez compléter le reCAPTCHA.');
 
-    // 2. Création du payload de commande (inclut le mode SumUp et les frais de port)
-    const payload = buildCreateOrderPayload('sumup', selectedShippingRate.rateId);
-    
     try {
-        // 3. Appel à Apps Script pour créer un checkout SumUp
+        const payload = buildCreateOrderPayload('sumup', selectedShippingRate.rateId);
+        
         const apiResponse = await fetch(`${API_URL}?action=createSumUpCheckout`, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain' },
@@ -565,15 +587,17 @@ const handleSumUpCheckout = async () => {
 
         const { checkoutId, checkoutUrl } = data;
 
-        // 4. Utilisation du SDK SumUp pour ouvrir le modal de paiement
+        // S'assurer que le SDK SumUp est chargé
+        if (typeof SumUp === 'undefined' || !SumUp.checkout) {
+            alert("Erreur: Le SDK de paiement SumUp n'a pas pu être chargé.");
+            return;
+        }
+
         const checkout = new SumUp.checkout({
             checkoutId: checkoutId,
             checkoutUrl: checkoutUrl,
             onResponse: async (type, body) => {
                 if (type === 'success') {
-                    // La transaction SumUp est réussie. On doit confirmer la commande.
-                    
-                    // 5. Appel à Apps Script pour confirmer la commande
                     const confirmationPayload = {
                         ...payload,
                         checkoutId: checkoutId,
@@ -588,11 +612,10 @@ const handleSumUpCheckout = async () => {
                         alert('Paiement réussi mais erreur à la confirmation de commande. Contactez-nous avec l\'ID: ' + checkoutId);
                         console.error('Order Confirmation Error:', confirmationData);
                     }
-                } else if (type === 'error' || body.status === 'FAILED') {
+                } else if (type === 'error' || (body && body.status === 'FAILED')) {
                     alert('Erreur de paiement SumUp : ' + (body.message || 'Transaction échouée.'));
                     console.error('SumUp Error:', body);
                 } else if (type === 'close') {
-                    // Utilisateur a fermé le modal
                     console.log('SumUp checkout closed.');
                 }
             }
@@ -604,15 +627,15 @@ const handleSumUpCheckout = async () => {
         console.error('SumUp/Network Error:', e);
         alert('Erreur réseau ou du serveur lors de la tentative de paiement.');
     }
-}; // <--- CORRECTION: CETTE ACCCOLADE EST LA FERMETURE MANQUANTE DE handleSumUpCheckout (Ligne 760)
+}; 
 
 // --- Logique des Frais de Livraison ---
-
-let shippingRates = {}; // Contient les tarifs par zone (Guadeloupe, Antilles, France...)
+let shippingRates = {}; 
 
 const fetchShippingRates = async () => {
     try {
         const response = await fetch(`${API_URL}?action=getShippingRates`);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const data = await response.json();
         if (data.success && data.rates) {
             shippingRates = data.rates;
@@ -621,6 +644,7 @@ const fetchShippingRates = async () => {
         }
     } catch (e) {
         console.error('Erreur réseau lors du chargement des tarifs de livraison:', e);
+        throw e; // Renvoyer l'erreur pour que init() puisse la gérer
     }
 };
 
@@ -628,17 +652,11 @@ const getApplicableRates = (zone) => {
     return shippingRates[zone] || [];
 };
 
-const getCartWeight = () => {
-    // Dans le script Apps Script, les tarifs sont basés sur le montant total.
-    // Cette fonction pourrait être utilisée si le tarif dépendait du nombre d'articles ou du poids.
-    // Ici, on retourne le total pour le calcul basé sur le montant.
-    return totalCart; // On utilise le total du panier (Subtotal + Shipping déjà ajouté)
-};
-
 const calculateAndDisplayShipping = (zone, forceUpdate = false) => {
     const shippingOptionsContainer = document.getElementById('shipping-options-container');
     const shippingOptionsEl = document.getElementById('shipping-options');
-    
+    const subtotal = getCartSubtotal();
+
     if (!zone || cart.length === 0) {
         shippingOptionsContainer.classList.add('hidden');
         shippingCost = 0;
@@ -647,11 +665,11 @@ const calculateAndDisplayShipping = (zone, forceUpdate = false) => {
         return;
     }
 
-    const subtotal = getCartTotal(); // Le montant utilisé pour déterminer la tranche
-
     let rates = getApplicableRates(zone);
-    if (rates.length === 0) {
-        shippingOptionsEl.innerHTML = `<p class="text-red-500">Aucun mode de livraison disponible pour cette zone.</p>`;
+    let applicableRates = rates.filter(rate => subtotal <= rate.maxAmount);
+
+    if (applicableRates.length === 0) {
+        shippingOptionsEl.innerHTML = `<p class="text-red-500 font-semibold">Le montant de votre commande (${formatPrice(subtotal)}) est supérieur à la tranche maximale gérée pour ${zone}. Veuillez nous contacter.</p>`;
         shippingOptionsContainer.classList.remove('hidden');
         shippingCost = 0;
         selectedShippingRate = null;
@@ -662,76 +680,66 @@ const calculateAndDisplayShipping = (zone, forceUpdate = false) => {
     shippingOptionsContainer.classList.remove('hidden');
     shippingOptionsEl.innerHTML = '';
     
-    let bestRate = null;
     let ratesHtml = '';
-    
-    rates.forEach(rate => {
-        // Appliquer la logique de la tranche de prix
-        if (subtotal <= rate.maxAmount) {
-            // C'est le tarif applicable. Le script Apps Script garantit que les tranches sont ordonnées.
-            // On prend le premier tarif qui correspond.
-            if (!bestRate) bestRate = rate;
+    let foundChecked = false;
 
-            const isChecked = selectedShippingRate && selectedShippingRate.rateId === rate.rateId;
-            
-            ratesHtml += `
-                <label class="flex items-center space-x-2 p-2 border rounded-md cursor-pointer ${isChecked ? 'border-primary bg-yellow-50' : 'hover:bg-gray-50'}">
-                    <input type="radio" name="shipping-rate" value="${rate.rateId}" 
-                           data-cost="${rate.cost}"
-                           data-name="${rate.method}"
-                           ${isChecked ? 'checked' : ''}
-                           onchange="updateShippingSelection(this)" 
-                           class="text-primary focus:ring-primary">
-                    <span class="flex-grow">${rate.method} (${rate.details})</span>
-                    <span class="font-bold">${formatPrice(rate.cost)}</span>
-                </label>
-            `;
-        }
+    applicableRates.forEach(rate => {
+        const isChecked = selectedShippingRate && selectedShippingRate.rateId === rate.rateId;
+        if (isChecked) foundChecked = true;
+
+        ratesHtml += `
+            <label class="flex items-center space-x-2 p-2 border rounded-md cursor-pointer ${isChecked ? 'border-primary bg-yellow-50' : 'hover:bg-gray-50'}">
+                <input type="radio" name="shipping-rate" value="${rate.rateId}" 
+                       data-cost="${rate.cost}"
+                       data-name="${rate.method}"
+                       ${isChecked ? 'checked' : ''}
+                       onchange="updateShippingSelection(this)" 
+                       class="text-primary focus:ring-primary">
+                <span class="flex-grow">${rate.method} (${rate.details})</span>
+                <span class="font-bold">${formatPrice(rate.cost)}</span>
+            </label>
+        `;
     });
 
-    if (ratesHtml === '') {
-        // Cela signifie que le montant est supérieur à la tranche maximale gérée
-         shippingOptionsEl.innerHTML = `<p class="text-red-500 font-semibold">Le montant de votre commande (${formatPrice(subtotal)}) dépasse notre tranche de livraison maximale pour ${zone}. Veuillez nous contacter.</p>`;
-         shippingCost = 0;
-         selectedShippingRate = null;
-    } else {
-        shippingOptionsEl.innerHTML = ratesHtml;
-        // Si la zone change ou si le panier change et que l'ancien taux n'est plus valide, on reset.
-        if (forceUpdate || !selectedShippingRate || !document.querySelector(`input[value="${selectedShippingRate.rateId}"]:checked`)) {
-            // Sélectionner par défaut la première option affichée (la meilleure si les tranches sont bien configurées)
-             const firstRadio = document.querySelector('input[name="shipping-rate"]');
-             if(firstRadio) {
-                firstRadio.checked = true;
-                updateShippingSelection(firstRadio);
-             } else {
-                // Si aucune option ne correspond, le HTML est vide (géré ci-dessus), on reset.
-                shippingCost = 0;
-                selectedShippingRate = null;
-             }
+    shippingOptionsEl.innerHTML = ratesHtml;
+
+    if (forceUpdate || !selectedShippingRate || !foundChecked) {
+        const firstRadio = document.querySelector('input[name="shipping-rate"]');
+        if(firstRadio) {
+            firstRadio.checked = true;
+            updateShippingSelection(firstRadio);
+        } else {
+            shippingCost = 0;
+            selectedShippingRate = null;
+            updateCartDisplays();
         }
+    } else {
+        updateCartDisplays();
     }
-    
-    updateCartDisplays(); // Mise à jour après calcul/sélection des frais de port
 };
 
 const updateShippingSelection = (radioElement) => {
     shippingCost = parseFloat(radioElement.dataset.cost);
+    
+    const label = radioElement.closest('label');
+    const fullMethodText = label.querySelector('span:nth-child(2)').textContent;
+    
     selectedShippingRate = {
         rateId: radioElement.value,
         cost: shippingCost,
         method: radioElement.dataset.name,
-        details: document.querySelector(`label:has(input[value="${radioElement.value}"]) > span:nth-child(2)`).textContent // Récupérer le nom complet
+        details: fullMethodText
     };
     
     document.getElementById('shipping-method-name').textContent = selectedShippingRate.method;
     document.getElementById('shipping-cost').textContent = formatPrice(shippingCost);
     document.getElementById('shipping-display').classList.remove('hidden');
     
-    // Réactualiser le total du panier
     updateCartDisplays();
 };
+
 // =========================================================================================
-// PARTIE 7 : JAVASCRIPT - INITIALISATION ET ÉCOUTEURS D'ÉVÉNEMENTS (CORRIGÉ DE LA SYNTAXE)
+// PARTIE 7 : JAVASCRIPT - INITIALISATION ET ÉCOUTEURS D'ÉVÉNEMENTS (LOGIQUE CORRIGÉE)
 // =========================================================================================
 
 /**
@@ -751,17 +759,23 @@ const buildCreateOrderPayload = (paymentMethod, shippingRateId) => {
     if (cart.length === 0) throw new Error("Panier vide.");
     
     let finalShippingCost = 0;
-    let finalShippingMethod = "Retrait en magasin / Non spécifié";
+    let finalShippingMethod = "Non spécifié";
 
-    if (shippingRateId) {
-        finalShippingCost = selectedShippingRate.cost;
-        finalShippingMethod = selectedShippingRate.method + " (" + shippingZone + ")";
+    if (shippingRateId && selectedShippingRate && selectedShippingRate.rateId === shippingRateId) {
+        finalShippingCost = selectedShippingRate.cost; // C'est déjà un float
+        finalShippingMethod = selectedShippingRate.details;
     } else {
-        // Cette erreur est capturée par la validation de SumUp/Virement
-        throw new Error("Missing shipping selection"); 
+        throw new Error("Sélection de livraison manquante ou invalide."); 
     }
     
-    const subtotal = getCartTotal(); // Le sous-total (sans frais de port)
+    const subtotal = getCartSubtotal(); // C'est déjà un float propre (arrondi)
+    
+    // ============================================================================
+    // ### CORRECTION MAJEURE (FIABILISATION) ###
+    // S'assurer que le total final est un nombre à 2 décimales pour les API
+    // C'est crucial pour SumUp qui reçoit le payload.
+    // ============================================================================
+    const finalTotal = parseFloat((subtotal + finalShippingCost).toFixed(2));
 
     const payload = {
         prenom, nom, telephone, email,
@@ -774,7 +788,7 @@ const buildCreateOrderPayload = (paymentMethod, shippingRateId) => {
             quantity: item.quantity,
             stock: item.stock
         })),
-        totalFinal: subtotal + finalShippingCost,
+        totalFinal: finalTotal, // Utilisation du total fiabilisé
         fraisLivraison: finalShippingCost,
         methodePaiement: paymentMethod,
         modeLivraison: finalShippingMethod,
@@ -797,6 +811,8 @@ const handlePaymentMethodChange = () => {
 
     if (method === 'paypal') {
         document.getElementById('paypal-button-container').classList.remove('hidden');
+        // S'assurer que les boutons sont chargés s'ils ne le sont pas
+        renderPayPalButtons(); 
     } else if (method === 'sumup') {
         document.getElementById('sumup-btn').classList.remove('hidden');
     } else if (method === 'virement') {
@@ -820,6 +836,9 @@ const handleNewsletterSignup = async (e) => {
         return;
     }
     
+    messageEl.textContent = "Inscription en cours...";
+    messageEl.className = 'mt-2 text-sm italic text-gray-400';
+    
     try {
         const data = await postNewsletterSignup(email);
         
@@ -838,92 +857,154 @@ const handleNewsletterSignup = async (e) => {
     }
 };
 
+// ============================================================================
+// ### CORRECTION MAJEURE (RACE CONDITION) ###
+// Logique d'initialisation de PayPal
+// ============================================================================
+let payPalButtonsRendered = false;
 
 /**
- * Fonction d'initialisation
+ * Rendu des boutons PayPal. Ne doit être appelé qu'UNE SEULE FOIS,
+ * et SEULEMENT si le SDK PayPal est chargé.
  */
-const init = async () => {
-    await fetchShippingRates(); // Charger les tarifs de livraison
-    await fetchProducts();      // Charger les produits et faire le rendu
-    updateCartDisplays();       // Charger le panier depuis le localStorage
-    handlePaymentMethodChange(); // Initialiser l'affichage du paiement
+const renderPayPalButtons = () => {
+    // Quitter si déjà rendu ou si le SDK 'paypal' n'est pas disponible
+    if (payPalButtonsRendered || typeof paypal === 'undefined') {
+        return;
+    }
     
-    // Écouteur pour le changement de zone de livraison
-    document.getElementById('shipping-zone').addEventListener('change', (e) => {
-        calculateAndDisplayShipping(e.target.value, true);
-    });
+    try {
+        // S'assurer que le conteneur est vide avant de rendre
+        if (document.getElementById('paypal-button-container').innerHTML === '') {
+            
+            paypal.Buttons({
+                // --- createOrder ---
+                // Le payload est créé au moment du clic
+                createOrder: function(data, actions) {
+                    // Valider le formulaire AVANT de créer la commande
+                    if (cart.length === 0) { 
+                        alert('Votre panier est vide.'); 
+                        throw new Error("Panier vide"); 
+                    }
+                    if (!document.getElementById('checkout-form').checkValidity()) {
+                        alert("Veuillez remplir tous les champs obligatoires du formulaire de livraison.");
+                        document.getElementById('checkout-form').reportValidity();
+                        throw new Error("Formulaire incomplet");
+                    }
+                    if (!selectedShippingRate) {
+                        alert("Veuillez sélectionner un mode de livraison.");
+                        throw new Error("Missing shipping selection");
+                    }
+                    
+                    // Construire le payload. Il contient déjà le total fiabilisé.
+                    const payload = buildCreateOrderPayload('paypal', selectedShippingRate.rateId);
+                    
+                    // Le code de création de commande PayPal semble correct.
+                    // Il utilise toFixed(2) partout, ce qui est bien.
+                    return actions.order.create({
+                        purchase_units: [{
+                            amount: {
+                                value: payload.totalFinal.toFixed(2), // Total (fiabilisé)
+                                currency_code: 'EUR',
+                                breakdown: {
+                                    item_total: { currency_code: 'EUR', value: (payload.totalFinal - payload.fraisLivraison).toFixed(2) }, // Sous-total
+                                    shipping: { currency_code: 'EUR', value: payload.fraisLivraison.toFixed(2) } // Livraison
+                                }
+                            },
+                            items: payload.cart.map(item => ({
+                                name: `${item.masterName} T. ${item.size}`,
+                                quantity: item.quantity,
+                                unit_amount: { currency_code: 'EUR', value: item.price.toFixed(2) }
+                            }))
+                        }]
+                    });
+                },
+                // --- onApprove ---
+                // La transaction est approuvée par l'utilisateur
+                onApprove: async function(data, actions) {
+                    const details = await actions.order.capture();
+                    // Re-construire le payload pour l'envoyer à notre backend pour confirmation
+                    const payload = buildCreateOrderPayload('paypal', selectedShippingRate.rateId);
+                    
+                    try {
+                        const orderData = await postCreateOrder({
+                            ...payload,
+                            checkoutId: details.id, // ID de transaction PayPal
+                            paypalDetails: details 
+                        });
+
+                        if (orderData.success) {
+                            showConfirmationAndClear(payload.prenom);
+                        } else {
+                            alert('Paiement réussi mais erreur à la confirmation de commande. Contactez-nous avec l\'ID PayPal: ' + details.id);
+                            console.error('Order Confirmation Error:', orderData);
+                        }
+                    } catch (e) {
+                        console.error('createOrder API err', e);
+                        alert('Erreur réseau lors de la finalisation de la commande.');
+                    }
+                },
+                // --- onError ---
+                onError: function(err) {
+                    console.error('PayPal Error:', err);
+                    alert('Erreur de paiement PayPal. Veuillez réessayer ou choisir un autre mode de paiement.');
+                }
+            }).render('#paypal-button-container');
+            
+            // Marquer comme rendu
+            payPalButtonsRendered = true;
+        }
+    } catch (e) {
+        console.error("Erreur critique lors du rendu des boutons PayPal:", e);
+        // Si le SDK est là mais échoue, informer l'utilisateur
+        if (typeof paypal !== 'undefined') {
+            document.getElementById('paypal-button-container').innerHTML = 
+                '<p class="text-red-500 text-sm">Erreur lors du chargement de PayPal. Veuillez rafraîchir.</p>';
+        }
+    }
 };
 
 
-// Écouteurs d'événements DOM (appelés après chargement du DOM)
-document.addEventListener('DOMContentLoaded', () => {
-
-    // PayPal (Rendu des boutons)
-    if(typeof paypal !== 'undefined') {
-        paypal.Buttons({
-            createOrder: function(data, actions) {
-                if (cart.length === 0) return alert('Votre panier est vide.');
-                if (!document.getElementById('checkout-form').checkValidity()) {
-                    alert("Veuillez remplir tous les champs obligatoires du formulaire de livraison.");
-                    document.getElementById('checkout-form').reportValidity();
-                    throw new Error("Formulaire incomplet");
-                }
-                if (!selectedShippingRate) {
-                    alert("Veuillez sélectionner un mode de livraison.");
-                    throw new Error("Missing shipping selection");
-                }
-                const payload = buildCreateOrderPayload('paypal', selectedShippingRate.rateId);
-                
-                return actions.order.create({
-                    purchase_units: [{
-                        amount: {
-                            value: payload.totalFinal.toFixed(2),
-                            currency_code: 'EUR',
-                            breakdown: {
-                                item_total: { currency_code: 'EUR', value: (payload.totalFinal - payload.fraisLivraison).toFixed(2) },
-                                shipping: { currency_code: 'EUR', value: payload.fraisLivraison.toFixed(2) }
-                            }
-                        },
-                        items: payload.cart.map(item => ({
-                            name: `${item.masterName} T. ${item.size}`,
-                            quantity: item.quantity,
-                            unit_amount: { currency_code: 'EUR', value: item.price.toFixed(2) }
-                        }))
-                    }]
-                });
-            },
-            onApprove: async function(data, actions) {
-                // Capturer la transaction (géré côté PayPal)
-                const details = await actions.order.capture();
-                
-                // Préparer le payload de commande final pour Apps Script
-                const payload = buildCreateOrderPayload('paypal', selectedShippingRate.rateId);
-                
-                try {
-                    const orderData = await postCreateOrder({
-                        ...payload,
-                        checkoutId: details.id,
-                        paypalDetails: details // Inclure les détails PayPal
-                    });
-
-                    if (orderData.success) {
-                        showConfirmationAndClear(payload.prenom);
-                    } else {
-                        alert('Paiement réussi mais erreur à la confirmation de commande. Contactez-nous avec l\'ID PayPal: ' + details.id);
-                        console.error('Order Confirmation Error:', orderData);
-                    }
-                } catch (e) {
-                    console.error('createOrder err', e);
-                    alert('Erreur réseau lors de la finalisation de la commande.');
-                }
-            },
-            onError: function(err) {
-                console.error('PayPal Error:', err);
-                alert('Erreur de paiement PayPal. Veuillez réessayer.');
-            }
-        }).render('#paypal-button-container');
+/**
+ * Fonction d'initialisation principale
+ */
+const init = async () => {
+    try {
+        // 1. Charger les données critiques (Tarifs de livraison)
+        // On AWAIT pour s'assurer qu'ils sont là avant tout le reste
+        await fetchShippingRates(); 
+        
+        // 2. Charger les produits (pas critique pour le paiement, mais pour l'affichage)
+        await fetchProducts();      
+        
+        // 3. Mettre à jour le panier depuis le localStorage
+        updateCartDisplays();       
+        
+        // 4. Initialiser l'affichage du paiement (SumUp par défaut)
+        handlePaymentMethodChange(); 
+        
+        // 5. TENTER de rendre les boutons PayPal (ne fera rien si le SDK n'est pas prêt)
+        // La fonction `handlePaymentMethodChange` le refera si l'utilisateur clique sur "PayPal"
+        renderPayPalButtons();
+        
+        // 6. Attacher l'écouteur pour le changement de zone (maintenant que les tarifs sont chargés)
+        document.getElementById('shipping-zone').addEventListener('change', (e) => {
+            calculateAndDisplayShipping(e.target.value, true);
+        });
+        
+    } catch (e) {
+        // Si les tarifs de livraison n'ont pas pu être chargés, le site est inutilisable
+        console.error("Erreur critique lors de l'initialisation (tarifs de livraison?):", e);
+        document.getElementById('loading-message').textContent = 
+            "Erreur critique lors du chargement des données. Le site ne peut pas fonctionner. Veuillez rafraîchir la page.";
+        // On pourrait désactiver tous les boutons d'achat ici
     }
+};
 
+
+// --- Écouteurs d'événements DOM (appelés après chargement du DOM) ---
+document.addEventListener('DOMContentLoaded', () => {
+    
     // Modal Image
     document.getElementById('prev-img').addEventListener('click', (e) => { e.stopPropagation(); changeImage(-1); });
     document.getElementById('next-img').addEventListener('click', (e) => { e.stopPropagation(); changeImage(1); });
@@ -949,10 +1030,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Écouteur Virement Bancaire (btn-submit-quick)
     document.getElementById('btn-submit-quick').addEventListener('click', async () => {
-        if (cart.length === 0) {
-            alert('Votre panier est vide.');
-            return;
-        }
+        if (cart.length === 0) { return alert('Votre panier est vide.'); }
+        
         if (!document.getElementById('checkout-form').checkValidity()) {
             alert("Veuillez remplir tous les champs obligatoires du formulaire de livraison.");
             document.getElementById('checkout-form').reportValidity();
@@ -969,38 +1048,61 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const payload = buildCreateOrderPayload('virement', selectedShippingRate.rateId);
             const data = await postCreateOrder(payload);
-            if(data.success){ showConfirmationAndClear(payload.prenom); } else { alert('Erreur création commande: ' + (data.error || data.message || 'Erreur')); console.error(data); }
+            
+            if(data.success){ 
+                showConfirmationAndClear(payload.prenom); 
+            } else { 
+                alert('Erreur création commande: ' + (data.error || data.message || 'Erreur inconnue')); 
+                console.error(data); 
+            }
         } catch(e){ 
-            if(e.message !== "Missing shipping selection") console.error('createOrder err', e); 
-            if(e.message !== "Missing shipping selection") alert('Erreur réseau / Panier vide.'); 
+            console.error('createOrder virement err', e);
+            alert(`Erreur: ${e.message}`); 
         }
     });
     
-    // NOUVEAU : Bouton SumUp
+    // Bouton SumUp
     document.getElementById('sumup-btn').addEventListener('click', handleSumUpCheckout);
 
-    // Virement Info
+    // Virement Info Toggle
+    // La logique ici est correcte : on vérifie l'état AVANT de le changer.
     document.getElementById('virement-button').addEventListener('click', ()=>{ 
-        document.getElementById('virement-info').classList.toggle('hidden');
+        const infoEl = document.getElementById('virement-info');
+        const isHidden = infoEl.classList.contains('hidden');
+        infoEl.classList.toggle('hidden');
+        // Si c'était caché (isHidden = true), on affiche "Masquer" (car maintenant c'est visible)
+        // Si c'était visible (isHidden = false), on affiche "Afficher" (car maintenant c'est caché)
+        document.getElementById('virement-button').textContent = isHidden ? 'Masquer les infos' : 'Afficher les infos';
     });
 
-    // Vider le panier (les deux boutons)
-    document.getElementById('btn-clear-cart').addEventListener('click', ()=>{ 
-        if(confirm('Vider le panier ?')){ cart=[]; updateCartDisplays(); handlePaymentMethodChange(); calculateAndDisplayShipping(document.getElementById('shipping-zone').value, true); }
-    });
-    document.getElementById('btn-clear-cart-default').addEventListener('click', ()=>{
-        if(confirm('Vider le panier ?')){ cart=[]; updateCartDisplays(); handlePaymentMethodChange(); calculateAndDisplayShipping(document.getElementById('shipping-zone').value, true); }
-    });
+    // Vider le panier (Les deux boutons)
+    const clearCartAction = () => {
+        if(confirm('Voulez-vous vraiment vider le panier ?')){ 
+            cart=[]; 
+            shippingCost = 0;
+            selectedShippingRate = null;
+            updateCartDisplays(true); 
+            handlePaymentMethodChange(); 
+            document.getElementById('checkout-overlay').classList.add('hidden');
+            document.getElementById('cart-drawer').classList.remove('cart-open');
+            document.getElementById('cart-drawer').classList.add('cart-closed');
+            
+            document.getElementById('shipping-zone').value = ''; 
+            document.getElementById('shipping-options-container').classList.add('hidden');
+        }
+    };
+    document.getElementById('btn-clear-cart-default').addEventListener('click', clearCartAction);
+    document.getElementById('btn-clear-cart-form').addEventListener('click', clearCartAction);
     
     // Écouteur Newsletter
     document.getElementById('newsletter-form').addEventListener('submit', handleNewsletterSignup);
-
-    // Initialisation au chargement de la page
+    
+    // ============================================================================
+    // Lancement de l'initialisation
+    // ============================================================================
     init();
   
-}); // <--- FERMETURE FINALE DU document.addEventListener('DOMContentLoaded', ...);
-
-
+}); 
 </script>
 </body>
 </html>
